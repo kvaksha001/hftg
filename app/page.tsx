@@ -22,7 +22,7 @@ export default function Home() {
   const [history, setHistory] = useState<Array<{type: string, amount: number, price: number}>>([]);
   const [priceHistory, setPriceHistory] = useState<Array<{time: number, price: number}>>([]);
   const [profitHistory, setProfitHistory] = useState<Array<{time: number, profit: number}>>([]);
-  const [leaderboard, setLeaderboard] = useState<Array<{rank: number, name: string, profit: number, trades: number}>>([]);
+  const [leaderboard, setLeaderboard] = useState<Array<{rank: number, name: string, profit: number, trades: number, avatar?: string}>>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [achievementNotification, setAchievementNotification] = useState<string | null>(null);
@@ -113,7 +113,8 @@ export default function Home() {
           rank: index + 1,
           name: doc.data().playerName,
           profit: doc.data().profit,
-          trades: doc.data().trades
+          trades: doc.data().trades,
+          avatar: doc.data().playerAvatar || ''
         }));
         setLeaderboard(scores);
       } catch (error) {
@@ -153,7 +154,7 @@ export default function Home() {
       
       const achievement = ACHIEVEMENTS.find(a => a.id === newAchievements[0]);
       if (achievement) {
-        setAchievementNotification(`${achievement.icon} ${achievement.title} unlocked!`);
+        setAchievementNotification(`${achievement.icon} ${achievement.title}`);
         setTimeout(() => setAchievementNotification(null), 5000);
       }
     }
@@ -239,8 +240,14 @@ export default function Home() {
 
     setIsSubmitting(true);
     try {
+      const nickname = localStorage.getItem('playerNickname') || '';
+      const avatar = localStorage.getItem('playerAvatar') || '';
+      const displayName = nickname || publicKey.toBase58().slice(0, 8) + '...';
+
       await addDoc(collection(db, 'scores'), {
-        playerName: publicKey.toBase58().slice(0, 8) + '...',
+        playerName: displayName,
+        playerNickname: nickname,
+        playerAvatar: avatar,
         playerAddress: publicKey.toBase58(),
         profit: profitLoss,
         trades: history.length,
@@ -565,19 +572,37 @@ export default function Home() {
                         : 'bg-slate-700/50 border-slate-600'
                     }`}
                   >
-                    <div className="flex justify-between items-center mb-2">
-                      <span className={`text-2xl font-bold ${
-                        trader.rank === 1 ? 'text-yellow-400' : 
-                        trader.rank === 2 ? 'text-gray-300' : 
-                        trader.rank === 3 ? 'text-orange-400' : 
-                        'text-slate-300'
-                      }`}>
-                        #{trader.rank}
-                      </span>
-                      <span className="text-xs px-2 py-1 bg-slate-700 rounded">
-                        {trader.trades} trades
-                      </span>
+                    <div className="flex items-center gap-3 mb-3">
+                      {/* Avatar */}
+                      {trader.avatar ? (
+                        <img 
+                          src={trader.avatar} 
+                          alt={trader.name}
+                          className="w-12 h-12 rounded-full border-2 border-slate-600"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white font-bold text-lg">
+                          {trader.name.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      
+                      <div className="flex-1">
+                        <div className="flex justify-between items-start">
+                          <span className={`text-xl font-bold ${
+                            trader.rank === 1 ? 'text-yellow-400' : 
+                            trader.rank === 2 ? 'text-gray-300' : 
+                            trader.rank === 3 ? 'text-orange-400' : 
+                            'text-slate-300'
+                          }`}>
+                            #{trader.rank}
+                          </span>
+                          <span className="text-xs px-2 py-1 bg-slate-700 rounded">
+                            {trader.trades} trades
+                          </span>
+                        </div>
+                      </div>
                     </div>
+                    
                     <p className="text-slate-200 font-semibold mb-2 truncate">{trader.name}</p>
                     <p className={`text-xl font-bold ${trader.profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                       {trader.profit >= 0 ? '+' : ''}${trader.profit.toFixed(2)}
@@ -590,10 +615,18 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Achievement Notification */}
+      {/* Achievement Notification - CENTERED & BIG */}
       {achievementNotification && (
-        <div className="fixed top-20 right-8 bg-gradient-to-r from-green-500 to-blue-500 text-white px-6 py-4 rounded-lg shadow-2xl animate-bounce z-50">
-          <p className="font-bold text-lg">{achievementNotification}</p>
+        <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 animate-bounce">
+          <div className="bg-gradient-to-r from-yellow-500 via-purple-500 to-blue-500 p-1 rounded-2xl shadow-2xl">
+            <div className="bg-slate-900 rounded-xl px-8 py-6">
+              <div className="text-center">
+                <div className="text-6xl mb-4">🎉</div>
+                <h3 className="text-2xl font-bold text-white mb-2">Achievement Unlocked!</h3>
+                <p className="text-xl text-yellow-400 font-bold">{achievementNotification}</p>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </main>
