@@ -10,11 +10,12 @@ import { collection, addDoc, query, orderBy, limit, getDocs, where } from 'fireb
 export default function Home() {
   const { publicKey } = useWallet();
   useEffect(() => {
-  // Автоочистка выбора кошелька при загрузке БЕЗ подключения
-  if (!publicKey) {
+  // Очистка ТОЛЬКО если был выбран несуществующий кошелёк
+  const walletName = localStorage.getItem('walletName');
+  if (!publicKey && walletName && !['Phantom', 'Solflare'].includes(walletName)) {
     localStorage.removeItem('walletName');
   }
-}, []);
+}, [publicKey]);
   const [balance, setBalance] = useState(1000);
   const [price, setPrice] = useState(100);
   const [holdings, setHoldings] = useState(0);
@@ -191,24 +192,7 @@ export default function Home() {
             </h1>
             <p className="text-slate-400 text-sm mt-1">High-Frequency Trading Game • Powered by Solana • ⚡ Real-Time</p>
           </div>
-          {publicKey ? (
-  <div className="flex gap-3 items-center">
-    <span className="text-green-400 text-sm font-mono">
-      {publicKey.toBase58().slice(0, 4)}...{publicKey.toBase58().slice(-4)}
-    </span>
-    <button
-      onClick={() => {
-  window.location.reload();
-}}
-
-      className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-white font-medium transition"
-    >
-      Disconnect
-    </button>
-  </div>
-) : (
-  <WalletMultiButton />
-)}
+          <WalletMultiButton />
 
         </div>
 
