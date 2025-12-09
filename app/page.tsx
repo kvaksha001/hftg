@@ -104,6 +104,21 @@ useEffect(() => {
         console.log('Leaderboard loading...');
       }
     };
+// Сбрасываем hasSaved при изменении профита
+useEffect(() => {
+  const totalValue = balance + (holdings * price);
+  const profitLoss = totalValue - 1000;
+  
+  if (publicKey) {
+    const savedKey = `lastProfit_${publicKey.toBase58()}`;
+    const lastProfit = localStorage.getItem(savedKey);
+    
+    // Если профит изменился - разрешаем сохранить снова
+    if (lastProfit && parseFloat(lastProfit) !== profitLoss) {
+      setHasSaved(false);
+    }
+  }
+}, [balance, holdings, price, publicKey]);
 
     fetchLeaderboard();
     const interval = setInterval(fetchLeaderboard, 5000);
