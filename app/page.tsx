@@ -235,7 +235,12 @@ useEffect(() => {
                 <LineChart data={priceHistory}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                   <XAxis dataKey="time" stroke="#94a3b8" />
-                  <YAxis stroke="#94a3b8" domain={['dataMin - 10', 'dataMax + 10']} />
+                  <YAxis 
+  stroke="#94a3b8" 
+  domain={['dataMin - 10', 'dataMax + 10']}
+  tickFormatter={(value) => Math.round(value).toString()}
+/>
+
                   <Tooltip 
                     contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '8px' }}
                     labelStyle={{ color: '#e2e8f0' }}
@@ -312,7 +317,11 @@ useEffect(() => {
                     <LineChart data={profitHistory}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                       <XAxis dataKey="time" stroke="#94a3b8" />
-                      <YAxis stroke="#94a3b8" />
+                      <YAxis 
+  stroke="#94a3b8"
+  tickFormatter={(value) => Math.round(value).toString()}
+/>
+
                       <Tooltip 
                         contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '8px' }}
                         labelStyle={{ color: '#e2e8f0' }}
