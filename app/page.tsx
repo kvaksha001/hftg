@@ -187,19 +187,18 @@ export default function Home() {
           </div>
           <div className="flex gap-3 items-center">
   <WalletMultiButton />
-  {publicKey && (
-    <button
-      onClick={() => {
-        localStorage.clear();
-        sessionStorage.clear();
-        window.location.reload();
-      }}
-      className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-white text-sm font-medium transition"
-    >
-      Change Wallet
-    </button>
-  )}
+  <button
+    onClick={() => {
+      localStorage.clear();
+      sessionStorage.clear();
+      window.location.reload();
+    }}
+    className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-white text-sm font-medium transition"
+  >
+    {publicKey ? 'Change Wallet' : 'Reset'}
+  </button>
 </div>
+
 
         </div>
 
