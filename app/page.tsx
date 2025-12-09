@@ -106,12 +106,11 @@ useEffect(() => {
     const profitLoss = totalValue - 1000;
     
     setProfitHistory(h => {
-      const updated = [...h, { time: timeCounter, profit: profitLoss }];
+      const updated = [...h, { time: h.length, profit: profitLoss }];
       return updated.slice(-60);
     });
-    
-    setTimeCounter(t => t + 1);
-  }, [balance, holdings, price, timeCounter]);
+  }, [balance, holdings, price]);
+
 
   // Fetch leaderboard
   useEffect(() => {
