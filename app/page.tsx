@@ -156,7 +156,7 @@ export default function Home() {
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Main Trading Area */}
-              <div className="lg:col-span-2 space-y-6">
+              <div className="lg:col-span-2 space-y-6 pb-20">
                 {/* Current Price */}
                 <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-6 text-white border border-green-500/30 shadow-2xl">
                   <h2 className="text-xl font-bold mb-4">💰 Current Price</h2>
