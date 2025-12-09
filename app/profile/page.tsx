@@ -11,6 +11,10 @@ export default function ProfilePage() {
   const [mounted, setMounted] = useState(false);
   const [unlockedAchievements, setUnlockedAchievements] = useState<string[]>([]);
   const [stats, setStats] = useState<any>({});
+  const [nickname, setNickname] = useState('');
+  const [editingNickname, setEditingNickname] = useState(false);
+  const [tempNickname, setTempNickname] = useState('');
+  const [avatar, setAvatar] = useState('');
 
   useEffect(() => {
     setMounted(true);
@@ -21,6 +25,11 @@ export default function ProfilePage() {
       
       const gameState = JSON.parse(localStorage.getItem('gameState') || '{}');
       const savedStats = JSON.parse(localStorage.getItem('playerStats') || '{}');
+      const savedNickname = localStorage.getItem('playerNickname') || '';
+      const savedAvatar = localStorage.getItem('playerAvatar') || '';
+      
+      setNickname(savedNickname);
+      setAvatar(savedAvatar);
       
       setStats({
         totalTrades: gameState.history?.length || 0,
@@ -31,9 +40,45 @@ export default function ProfilePage() {
     }
   }, []);
 
+  const handleSaveNickname = () => {
+    if (tempNickname.trim().length < 3) {
+      alert('Nickname must be at least 3 characters!');
+      return;
+    }
+    if (tempNickname.trim().length > 20) {
+      alert('Nickname must be less than 20 characters!');
+      return;
+    }
+    
+    localStorage.setItem('playerNickname', tempNickname.trim());
+    setNickname(tempNickname.trim());
+    setEditingNickname(false);
+    alert('✅ Nickname saved!');
+  };
+
+  const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 1024 * 1024) {
+      alert('Image must be less than 1MB!');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const result = event.target?.result as string;
+      localStorage.setItem('playerAvatar', result);
+      setAvatar(result);
+      alert('✅ Avatar uploaded!');
+    };
+    reader.readAsDataURL(file);
+  };
+
   if (!mounted) return null;
 
   const progress = (unlockedAchievements.length / ACHIEVEMENTS.length) * 100;
+  const defaultAvatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${publicKey?.toBase58() || 'default'}`;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-8">
@@ -46,12 +91,77 @@ export default function ProfilePage() {
         </div>
 
         <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-8 border border-slate-700 shadow-2xl mb-8">
-          <h1 className="text-4xl font-bold text-white mb-4">👤 Player Profile</h1>
-          {publicKey ? (
-            <p className="text-slate-300 font-mono">{publicKey.toBase58().slice(0, 20)}...</p>
-          ) : (
-            <p className="text-slate-400">Connect wallet to save progress</p>
-          )}
+          <div className="flex items-start gap-6">
+            {/* Avatar */}
+            <div className="relative group">
+              <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-slate-600 group-hover:border-purple-500 transition">
+                <img 
+                  src={avatar || defaultAvatar} 
+                  alt="Avatar"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <label className="absolute inset-0 flex items-center justify-center bg-black/60 rounded-full opacity-0 group-hover:opacity-100 cursor-pointer transition">
+                <span className="text-white text-sm font-bold">Change</span>
+                <input 
+                  type="file" 
+                  accept="image/*"
+                  onChange={handleAvatarUpload}
+                  className="hidden"
+                />
+              </label>
+            </div>
+
+            {/* Name & Info */}
+            <div className="flex-1">
+              <div className="flex items-center gap-3 mb-2">
+                {editingNickname ? (
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={tempNickname}
+                      onChange={(e) => setTempNickname(e.target.value)}
+                      placeholder="Enter nickname"
+                      className="px-3 py-2 bg-slate-700 rounded-lg text-white border border-slate-600 focus:border-purple-500 focus:outline-none"
+                      maxLength={20}
+                    />
+                    <button
+                      onClick={handleSaveNickname}
+                      className="px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-white font-medium transition"
+                    >
+                      Save
+                    </button>
+                    <button
+                      onClick={() => setEditingNickname(false)}
+                      className="px-4 py-2 bg-slate-600 hover:bg-slate-700 rounded-lg text-white font-medium transition"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <h1 className="text-4xl font-bold text-white">
+                      {nickname || 'Anonymous Trader'}
+                    </h1>
+                    <button
+                      onClick={() => {
+                        setTempNickname(nickname);
+                        setEditingNickname(true);
+                      }}
+                      className="text-purple-400 hover:text-purple-300 transition"
+                    >
+                      ✏️ Edit
+                    </button>
+                  </>
+                )}
+              </div>
+              {publicKey ? (
+                <p className="text-slate-400 font-mono text-sm">{publicKey.toBase58().slice(0, 20)}...</p>
+              ) : (
+                <p className="text-slate-400">Connect wallet to save progress</p>
+              )}
+            </div>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
