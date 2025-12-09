@@ -27,6 +27,31 @@ export default function Home() {
   const [timeCounter, setTimeCounter] = useState(0);
   const [leaderboard, setLeaderboard] = useState<Array<{rank: number, name: string, profit: number, trades: number}>>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Load game state from localStorage
+useEffect(() => {
+  if (publicKey) {
+    const savedState = localStorage.getItem(`game_${publicKey.toBase58()}`);
+    if (savedState) {
+      const state = JSON.parse(savedState);
+      setBalance(state.balance);
+      setHoldings(state.holdings);
+      setHistory(state.history || []);
+    }
+  }
+}, [publicKey]);
+
+// Save game state to localStorage
+useEffect(() => {
+  if (publicKey) {
+    const state = {
+      balance,
+      holdings,
+      history,
+      timestamp: Date.now()
+    };
+    localStorage.setItem(`game_${publicKey.toBase58()}`, JSON.stringify(state));
+  }
+}, [balance, holdings, history, publicKey]);
 
   // Real-time price simulation
   useEffect(() => {
