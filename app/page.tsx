@@ -20,37 +20,36 @@ export default function Home() {
   const [profitHistory, setProfitHistory] = useState<Array<{time: number, profit: number}>>([]);
   const [leaderboard, setLeaderboard] = useState<Array<{rank: number, name: string, profit: number, trades: number}>>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [hasSaved, setHasSaved] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
   // Load saved game state
-useEffect(() => {
-  if (typeof window !== 'undefined') {
-    const saved = localStorage.getItem('gameState');
-    if (saved) {
-      try {
-        const state = JSON.parse(saved);
-        setBalance(state.balance || 1000);
-        setHoldings(state.holdings || 0);
-        setHistory(state.history || []);
-      } catch (e) {
-        console.log('No saved state');
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('gameState');
+      if (saved) {
+        try {
+          const state = JSON.parse(saved);
+          setBalance(state.balance || 1000);
+          setHoldings(state.holdings || 0);
+          setHistory(state.history || []);
+        } catch (e) {
+          console.log('No saved state');
+        }
       }
     }
-  }
-}, []);
+  }, []);
 
-// Save game state on changes
-useEffect(() => {
-  if (typeof window !== 'undefined') {
-    const state = { balance, holdings, history };
-    localStorage.setItem('gameState', JSON.stringify(state));
-  }
-}, [balance, holdings, history]);
-
+  // Save game state on changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const state = { balance, holdings, history };
+      localStorage.setItem('gameState', JSON.stringify(state));
+    }
+  }, [balance, holdings, history]);
 
   // Real-time price simulation
   useEffect(() => {
@@ -104,21 +103,6 @@ useEffect(() => {
         console.log('Leaderboard loading...');
       }
     };
-// Сбрасываем hasSaved при изменении профита
-useEffect(() => {
-  const totalValue = balance + (holdings * price);
-  const profitLoss = totalValue - 1000;
-  
-  if (publicKey) {
-    const savedKey = `lastProfit_${publicKey.toBase58()}`;
-    const lastProfit = localStorage.getItem(savedKey);
-    
-    // Если профит изменился - разрешаем сохранить снова
-    if (lastProfit && parseFloat(lastProfit) !== profitLoss) {
-      setHasSaved(false);
-    }
-  }
-}, [balance, holdings, price, publicKey]);
 
     fetchLeaderboard();
     const interval = setInterval(fetchLeaderboard, 5000);
@@ -156,53 +140,40 @@ useEffect(() => {
     setSellAmount('');
   };
 
-const handleSaveScore = async () => {
-  if (!publicKey) {
-    alert('Please connect your wallet first!');
-    return;
-  }
+  const handleSaveScore = async () => {
+    if (!publicKey) {
+      alert('Please connect your wallet first!');
+      return;
+    }
 
-  const totalValue = balance + (holdings * price);
-  const profitLoss = totalValue - 1000;
-
-  // Проверяем последний сохранённый профит
-  const savedKey = `lastProfit_${publicKey.toBase58()}`;
-  const lastProfit = localStorage.getItem(savedKey);
-  
-  if (lastProfit && parseFloat(lastProfit) === profitLoss) {
-    alert('You already saved this exact profit! Trade more to submit a new score.');
-    return;
-  }
-
-  if (hasSaved) {
-    alert('You already saved this score in this session!');
-    return;
-  }
-
-
-  setIsSubmitting(true);
-  try {
     const totalValue = balance + (holdings * price);
     const profitLoss = totalValue - 1000;
+
+    // Проверяем последний сохранённый профит
+    const savedKey = `lastProfit_${publicKey.toBase58()}`;
+    const lastProfit = localStorage.getItem(savedKey);
     
-    await addDoc(collection(db, 'scores'), {
-      playerName: publicKey.toBase58().slice(0, 8) + '...',
-      playerAddress: publicKey.toBase58(),
-      profit: profitLoss,
-      trades: history.length,
-      finalBalance: balance,
-      finalHoldings: holdings,
-      timestamp: new Date(),
-      finalPrice: price
-    });
+    if (lastProfit && parseFloat(lastProfit) === profitLoss) {
+      alert('You already saved this exact profit! Trade more to submit a new score.');
+      return;
+    }
 
-    // Сохраняем в localStorage
-    // Сохраняем последний профит
-    localStorage.setItem(savedKey, profitLoss.toString());
-    setHasSaved(true);
+    setIsSubmitting(true);
+    try {
+      await addDoc(collection(db, 'scores'), {
+        playerName: publicKey.toBase58().slice(0, 8) + '...',
+        playerAddress: publicKey.toBase58(),
+        profit: profitLoss,
+        trades: history.length,
+        finalBalance: balance,
+        finalHoldings: holdings,
+        timestamp: new Date(),
+        finalPrice: price
+      });
 
-    alert('✅ Score saved to leaderboard!');
-
+      // Сохраняем последний профит
+      localStorage.setItem(savedKey, profitLoss.toString());
+      alert('✅ Score saved to leaderboard!');
     } catch (error) {
       console.error('Error saving score:', error);
       alert('Error saving score');
@@ -251,20 +222,18 @@ const handleSaveScore = async () => {
             <p className="text-slate-400 text-sm mt-1">High-Frequency Trading Game • Powered by Solana • ⚡ Real-Time</p>
           </div>
           <div className="flex gap-3 items-center">
-  <WalletMultiButton />
-  <button
-    onClick={() => {
-      localStorage.clear();
-      sessionStorage.clear();
-      window.location.reload();
-    }}
-    className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-white text-sm font-medium transition"
-  >
-    {publicKey ? 'Change Wallet' : 'Reset'}
-  </button>
-</div>
-
-
+            <WalletMultiButton />
+            <button
+              onClick={() => {
+                localStorage.clear();
+                sessionStorage.clear();
+                window.location.reload();
+              }}
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-white text-sm font-medium transition"
+            >
+              🔄 Reset Game
+            </button>
+          </div>
         </div>
 
         <div className="space-y-6">
@@ -276,11 +245,10 @@ const handleSaveScore = async () => {
                   <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                   <XAxis dataKey="time" stroke="#94a3b8" />
                   <YAxis 
-  stroke="#94a3b8" 
-  domain={['dataMin - 10', 'dataMax + 10']}
-  tickFormatter={(value) => Math.round(value).toString()}
-/>
-
+                    stroke="#94a3b8" 
+                    domain={['dataMin - 10', 'dataMax + 10']}
+                    tickFormatter={(value) => Math.round(value).toString()}
+                  />
                   <Tooltip 
                     contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '8px' }}
                     labelStyle={{ color: '#e2e8f0' }}
@@ -318,6 +286,20 @@ const handleSaveScore = async () => {
                     onChange={(e) => setBuyAmount(e.target.value)}
                     className="w-full px-4 py-3 bg-slate-700 rounded-lg mb-3 text-white placeholder-slate-400 border border-slate-600 focus:border-green-500 focus:outline-none transition"
                   />
+                  
+                  {/* Quick amount buttons */}
+                  <div className="flex gap-2 mb-3">
+                    {[1, 2, 5, 10, 100].map(amount => (
+                      <button
+                        key={amount}
+                        onClick={() => setBuyAmount(amount.toString())}
+                        className="flex-1 px-2 py-1 bg-slate-600 hover:bg-green-600 rounded text-xs font-medium transition"
+                      >
+                        {amount}
+                      </button>
+                    ))}
+                  </div>
+
                   <div className="text-sm text-slate-300 mb-3">
                     Cost: <span className="text-green-400 font-bold">${((parseFloat(buyAmount) || 0) * price).toFixed(2)}</span>
                   </div>
@@ -338,6 +320,20 @@ const handleSaveScore = async () => {
                     onChange={(e) => setSellAmount(e.target.value)}
                     className="w-full px-4 py-3 bg-slate-700 rounded-lg mb-3 text-white placeholder-slate-400 border border-slate-600 focus:border-red-500 focus:outline-none transition"
                   />
+                  
+                  {/* Quick amount buttons */}
+                  <div className="flex gap-2 mb-3">
+                    {[1, 2, 5, 10, 100].map(amount => (
+                      <button
+                        key={amount}
+                        onClick={() => setSellAmount(amount.toString())}
+                        className="flex-1 px-2 py-1 bg-slate-600 hover:bg-red-600 rounded text-xs font-medium transition"
+                      >
+                        {amount}
+                      </button>
+                    ))}
+                  </div>
+
                   <div className="text-sm text-slate-300 mb-3">
                     Revenue: <span className="text-red-400 font-bold">${((parseFloat(sellAmount) || 0) * price).toFixed(2)}</span>
                   </div>
@@ -358,10 +354,9 @@ const handleSaveScore = async () => {
                       <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                       <XAxis dataKey="time" stroke="#94a3b8" />
                       <YAxis 
-  stroke="#94a3b8"
-  tickFormatter={(value) => Math.round(value).toString()}
-/>
-
+                        stroke="#94a3b8"
+                        tickFormatter={(value) => Math.round(value).toString()}
+                      />
                       <Tooltip 
                         contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '8px' }}
                         labelStyle={{ color: '#e2e8f0' }}
