@@ -11,7 +11,8 @@ export default function AdminPage() {
   const [isAuth, setIsAuth] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const ADMIN_PASSWORD = 'hftg2025'; // Смени на свой!
+  const ADMIN_PASSWORD = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || 'temporary';
+
 
   const loadScores = async () => {
     setLoading(true);
