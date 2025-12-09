@@ -9,6 +9,13 @@ import { collection, addDoc, query, orderBy, limit, getDocs, where } from 'fireb
 
 export default function Home() {
   const { publicKey } = useWallet();
+  useEffect(() => {
+  // Очистка старого выбора кошелька при загрузке
+  if (typeof window !== 'undefined' && !publicKey) {
+    window.localStorage.removeItem('walletName');
+  }
+}, [publicKey]);
+
   const [balance, setBalance] = useState(1000);
   const [price, setPrice] = useState(100);
   const [holdings, setHoldings] = useState(0);
