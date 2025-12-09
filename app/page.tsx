@@ -147,17 +147,23 @@ const handleSaveScore = async () => {
     return;
   }
 
-  // Проверяем в localStorage
-  const savedKey = `saved_${publicKey.toBase58()}`;
-  if (localStorage.getItem(savedKey)) {
-    alert('You already saved a score with this wallet!');
+  const totalValue = balance + (holdings * price);
+  const profitLoss = totalValue - 1000;
+
+  // Проверяем последний сохранённый профит
+  const savedKey = `lastProfit_${publicKey.toBase58()}`;
+  const lastProfit = localStorage.getItem(savedKey);
+  
+  if (lastProfit && parseFloat(lastProfit) === profitLoss) {
+    alert('You already saved this exact profit! Trade more to submit a new score.');
     return;
   }
 
   if (hasSaved) {
-    alert('You already saved this score!');
+    alert('You already saved this score in this session!');
     return;
   }
+
 
   setIsSubmitting(true);
   try {
@@ -176,8 +182,10 @@ const handleSaveScore = async () => {
     });
 
     // Сохраняем в localStorage
-    localStorage.setItem(savedKey, 'true');
+    // Сохраняем последний профит
+    localStorage.setItem(savedKey, profitLoss.toString());
     setHasSaved(true);
+
     alert('✅ Score saved to leaderboard!');
 
     } catch (error) {
