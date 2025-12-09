@@ -25,6 +25,31 @@ export default function Home() {
   useEffect(() => {
     setMounted(true);
   }, []);
+  // Load saved game state
+useEffect(() => {
+  if (typeof window !== 'undefined') {
+    const saved = localStorage.getItem('gameState');
+    if (saved) {
+      try {
+        const state = JSON.parse(saved);
+        setBalance(state.balance || 1000);
+        setHoldings(state.holdings || 0);
+        setHistory(state.history || []);
+      } catch (e) {
+        console.log('No saved state');
+      }
+    }
+  }
+}, []);
+
+// Save game state on changes
+useEffect(() => {
+  if (typeof window !== 'undefined') {
+    const state = { balance, holdings, history };
+    localStorage.setItem('gameState', JSON.stringify(state));
+  }
+}, [balance, holdings, history]);
+
 
   // Real-time price simulation
   useEffect(() => {
