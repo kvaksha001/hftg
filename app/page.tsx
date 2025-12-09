@@ -9,7 +9,6 @@ import { collection, addDoc, query, orderBy, limit, getDocs, where } from 'fireb
 
 export default function Home() {
   const { publicKey } = useWallet();
-  
   const [balance, setBalance] = useState(1000);
   const [price, setPrice] = useState(100);
   const [holdings, setHoldings] = useState(0);
@@ -22,9 +21,19 @@ export default function Home() {
   const [leaderboard, setLeaderboard] = useState<Array<{rank: number, name: string, profit: number, trades: number}>>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasSaved, setHasSaved] = useState(false);
+  const [isClient, setIsClient] = useState(false);
+
+  // Fix hydration
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+
 
   // Load game state from localStorage on mount
-  useEffect(() => {
+ // Load game state from localStorage on mount (client-side only)
+useEffect(() => {
+  if (typeof window !== 'undefined') {
     const savedState = localStorage.getItem('gameState');
     if (savedState) {
       try {
@@ -36,10 +45,13 @@ export default function Home() {
         console.log('Failed to load saved state');
       }
     }
-  }, []);
+  }
+}, []);
 
-  // Save game state to localStorage whenever it changes
-  useEffect(() => {
+
+  // Save game state to localStorage whenever it changes (client-side only)
+useEffect(() => {
+  if (typeof window !== 'undefined' && isClient) {
     const state = {
       balance,
       holdings,
@@ -47,23 +59,26 @@ export default function Home() {
       timestamp: Date.now()
     };
     localStorage.setItem('gameState', JSON.stringify(state));
-  }, [balance, holdings, history]);
+  }
+}, [balance, holdings, history, isClient]);
 
-  // Check if user already saved score (prevent duplicates)
-  useEffect(() => {
-    if (publicKey) {
-      const savedScores = JSON.parse(localStorage.getItem('savedScores') || '{}');
-      const walletKey = publicKey.toBase58();
-      const currentTotal = balance + (holdings * price);
-      
-      // Check if this exact score was already saved
-      if (savedScores[walletKey] === currentTotal) {
-        setHasSaved(true);
-      } else {
-        setHasSaved(false);
-      }
+
+ // Check if user already saved score (prevent duplicates)
+useEffect(() => {
+  if (publicKey && typeof window !== 'undefined') {
+    const savedScores = JSON.parse(localStorage.getItem('savedScores') || '{}');
+    const walletKey = publicKey.toBase58();
+    const currentTotal = balance + (holdings * price);
+    
+    // Check if this exact score was already saved
+    if (savedScores[walletKey] === currentTotal) {
+      setHasSaved(true);
+    } else {
+      setHasSaved(false);
     }
-  }, [publicKey, balance, holdings, price]);
+  }
+}, [publicKey, balance, holdings, price]);
+
 
   // Real-time price simulation
   useEffect(() => {
