@@ -253,7 +253,8 @@ useEffect(() => {
             </h1>
             <p className="text-slate-400 text-sm mt-1">High-Frequency Trading Game • Powered by Solana • ⚡ Real-Time</p>
           </div>
-          <WalletMultiButton />
+          {isClient && <WalletMultiButton />}
+
         </div>
 
         <div className="space-y-6">
@@ -415,16 +416,19 @@ useEffect(() => {
                 </div>
 
                 {/* Save Score Button */}
+                {isClient && (
                 <button
                   onClick={handleSaveScore}
                   disabled={isSubmitting || !publicKey || hasSaved}
                   className="w-full mt-4 bg-gradient-to-r from-yellow-600 to-yellow-700 hover:from-yellow-700 hover:to-yellow-800 disabled:opacity-50 disabled:cursor-not-allowed px-4 py-3 rounded-lg font-bold transition transform hover:scale-105 active:scale-95 shadow-lg text-white"
                 >
                   {!publicKey ? '🔗 Connect Wallet to Save' : 
-                   hasSaved ? '✅ Score Saved!' :
-                   isSubmitting ? '💾 Saving...' : 
-                   '🏆 Save to Leaderboard'}
+                  hasSaved ? '✅ Score Saved!' :
+                  isSubmitting ? '💾 Saving...' : 
+                  '🏆 Save to Leaderboard'}
                 </button>
+              )}
+
               </div>
 
               {/* Trading Statistics */}
