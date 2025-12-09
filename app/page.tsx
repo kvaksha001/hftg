@@ -262,7 +262,7 @@ export default function Home() {
               {/* Sidebar - Portfolio & Stats */}
               <div className="space-y-6">
                 {/* Portfolio Card */}
-                <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-6 text-white sticky top-8 border border-slate-700 shadow-2xl">
+                <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-6 text-white border border-slate-700 shadow-2xl">
                   <h3 className="text-2xl font-bold mb-4">💼 Portfolio</h3>
                   <div className="space-y-4">
                     <div className="bg-slate-700/50 p-4 rounded-lg border border-slate-600">
