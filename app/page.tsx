@@ -1,14 +1,15 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { db } from '@/lib/firebase';
-import { collection, addDoc, query, orderBy, limit, getDocs, where } from 'firebase/firestore';
+import { collection, addDoc, query, orderBy, limit, getDocs } from 'firebase/firestore';
 
 export default function Home() {
   const { publicKey } = useWallet();
+  
   const [balance, setBalance] = useState(1000);
   const [price, setPrice] = useState(100);
   const [holdings, setHoldings] = useState(0);
@@ -17,68 +18,13 @@ export default function Home() {
   const [history, setHistory] = useState<Array<{type: string, amount: number, price: number}>>([]);
   const [priceHistory, setPriceHistory] = useState<Array<{time: number, price: number}>>([]);
   const [profitHistory, setProfitHistory] = useState<Array<{time: number, profit: number}>>([]);
-  const [timeCounter, setTimeCounter] = useState(0);
   const [leaderboard, setLeaderboard] = useState<Array<{rank: number, name: string, profit: number, trades: number}>>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [hasSaved, setHasSaved] = useState(false);
-  const [isClient, setIsClient] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
-  // Fix hydration
   useEffect(() => {
-    setIsClient(true);
+    setMounted(true);
   }, []);
-
-
-
-  // Load game state from localStorage on mount
- // Load game state from localStorage on mount (client-side only)
-useEffect(() => {
-  if (typeof window !== 'undefined') {
-    const savedState = localStorage.getItem('gameState');
-    if (savedState) {
-      try {
-        const state = JSON.parse(savedState);
-        setBalance(state.balance || 1000);
-        setHoldings(state.holdings || 0);
-        setHistory(state.history || []);
-      } catch (e) {
-        console.log('Failed to load saved state');
-      }
-    }
-  }
-}, []);
-
-
-  // Save game state to localStorage whenever it changes (client-side only)
-useEffect(() => {
-  if (typeof window !== 'undefined' && isClient) {
-    const state = {
-      balance,
-      holdings,
-      history,
-      timestamp: Date.now()
-    };
-    localStorage.setItem('gameState', JSON.stringify(state));
-  }
-}, [balance, holdings, history, isClient]);
-
-
- // Check if user already saved score (prevent duplicates)
-useEffect(() => {
-  if (publicKey && typeof window !== 'undefined') {
-    const savedScores = JSON.parse(localStorage.getItem('savedScores') || '{}');
-    const walletKey = publicKey.toBase58();
-    const currentTotal = balance + (holdings * price);
-    
-    // Check if this exact score was already saved
-    if (savedScores[walletKey] === currentTotal) {
-      setHasSaved(true);
-    } else {
-      setHasSaved(false);
-    }
-  }
-}, [publicKey, balance, holdings, price]);
-
 
   // Real-time price simulation
   useEffect(() => {
@@ -100,7 +46,7 @@ useEffect(() => {
     return () => clearInterval(interval);
   }, []);
 
-  // Update profit history
+  // Update profit history when values change
   useEffect(() => {
     const totalValue = balance + (holdings * price);
     const profitLoss = totalValue - 1000;
@@ -110,7 +56,6 @@ useEffect(() => {
       return updated.slice(-60);
     });
   }, [balance, holdings, price]);
-
 
   // Fetch leaderboard
   useEffect(() => {
@@ -139,7 +84,7 @@ useEffect(() => {
     return () => clearInterval(interval);
   }, []);
 
-  const handleBuy = useCallback(() => {
+  const handleBuy = () => {
     const amount = parseFloat(buyAmount);
     if (!amount || amount <= 0) return;
     
@@ -153,9 +98,9 @@ useEffect(() => {
     setHoldings(prev => prev + amount);
     setHistory(prev => [...prev, { type: 'BUY', amount, price }]);
     setBuyAmount('');
-  }, [buyAmount, price, balance]);
+  };
 
-  const handleSell = useCallback(() => {
+  const handleSell = () => {
     const amount = parseFloat(sellAmount);
     if (!amount || amount <= 0) return;
     if (amount > holdings) {
@@ -168,17 +113,11 @@ useEffect(() => {
     setHoldings(prev => prev - amount);
     setHistory(prev => [...prev, { type: 'SELL', amount, price }]);
     setSellAmount('');
-  }, [sellAmount, price, holdings]);
+  };
 
-  // Save score to Firebase (prevent duplicates)
-  const handleSaveScore = useCallback(async () => {
+  const handleSaveScore = async () => {
     if (!publicKey) {
       alert('Please connect your wallet first!');
-      return;
-    }
-
-    if (hasSaved) {
-      alert('You already saved this score!');
       return;
     }
 
@@ -198,12 +137,6 @@ useEffect(() => {
         finalPrice: price
       });
 
-      // Mark as saved in localStorage
-      const savedScores = JSON.parse(localStorage.getItem('savedScores') || '{}');
-      savedScores[publicKey.toBase58()] = totalValue;
-      localStorage.setItem('savedScores', JSON.stringify(savedScores));
-      
-      setHasSaved(true);
       alert('✅ Score saved to leaderboard!');
     } catch (error) {
       console.error('Error saving score:', error);
@@ -211,12 +144,11 @@ useEffect(() => {
     } finally {
       setIsSubmitting(false);
     }
-  }, [publicKey, balance, holdings, price, history, hasSaved]);
+  };
 
   const totalValue = balance + (holdings * price);
   const profitLoss = totalValue - 1000;
 
-  // Calculate Statistics
   const buyTrades = history.filter(t => t.type === 'BUY');
   const sellTrades = history.filter(t => t.type === 'SELL');
   const totalTrades = history.length;
@@ -241,10 +173,11 @@ useEffect(() => {
 
   const winRate = totalTrades > 0 ? Math.round((profitableTrades / Math.max(1, sellTrades.length)) * 100) : 0;
 
+  if (!mounted) return null;
+
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-8">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
         <div className="flex justify-between items-center mb-8">
           <div>
             <h1 className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-blue-500">
@@ -252,12 +185,10 @@ useEffect(() => {
             </h1>
             <p className="text-slate-400 text-sm mt-1">High-Frequency Trading Game • Powered by Solana • ⚡ Real-Time</p>
           </div>
-          {isClient && <WalletMultiButton />}
-
+          <WalletMultiButton />
         </div>
 
         <div className="space-y-6">
-          {/* Price Chart */}
           <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-6 text-white border border-slate-700 shadow-2xl">
             <h2 className="text-xl font-bold mb-4">📈 Price Chart (Last 60 seconds)</h2>
             {priceHistory.length > 0 && (
@@ -284,9 +215,7 @@ useEffect(() => {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Main Trading Area */}
             <div className="lg:col-span-2 space-y-6 pb-20">
-              {/* Current Price */}
               <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-6 text-white border border-green-500/30 shadow-2xl">
                 <h2 className="text-xl font-bold mb-4">💰 Current Price</h2>
                 <div className="text-6xl font-bold text-green-400 mb-2">
@@ -295,9 +224,7 @@ useEffect(() => {
                 <p className="text-slate-300 text-sm">Updates every second • Live Market</p>
               </div>
 
-              {/* Trading Cards */}
               <div className="grid grid-cols-2 gap-6">
-                {/* Buy Card */}
                 <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-6 text-white border border-green-500/30 shadow-2xl hover:border-green-500/60 transition">
                   <h3 className="text-xl font-bold mb-4">🟢 Buy Tokens</h3>
                   <input
@@ -318,7 +245,6 @@ useEffect(() => {
                   </button>
                 </div>
 
-                {/* Sell Card */}
                 <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-6 text-white border border-red-500/30 shadow-2xl hover:border-red-500/60 transition">
                   <h3 className="text-xl font-bold mb-4">🔴 Sell Tokens</h3>
                   <input
@@ -340,7 +266,6 @@ useEffect(() => {
                 </div>
               </div>
 
-              {/* Profit/Loss Chart */}
               <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-6 text-white border border-slate-700 shadow-2xl">
                 <h2 className="text-xl font-bold mb-4">📊 Profit/Loss Chart</h2>
                 {profitHistory.length > 0 && (
@@ -366,7 +291,6 @@ useEffect(() => {
                 )}
               </div>
 
-              {/* Trade History */}
               <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-6 text-white border border-slate-700 shadow-2xl">
                 <h3 className="text-xl font-bold mb-4">📜 Trade History</h3>
                 <div className="space-y-2 max-h-48 overflow-y-auto">
@@ -388,9 +312,7 @@ useEffect(() => {
               </div>
             </div>
 
-            {/* Sidebar - Portfolio & Stats */}
             <div className="space-y-6">
-              {/* Portfolio Card */}
               <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-6 text-white border border-slate-700 shadow-2xl">
                 <h3 className="text-2xl font-bold mb-4">💼 Portfolio</h3>
                 <div className="space-y-4">
@@ -414,23 +336,15 @@ useEffect(() => {
                   </div>
                 </div>
 
-                {/* Save Score Button */}
-                {isClient && (
                 <button
                   onClick={handleSaveScore}
-                  disabled={isSubmitting || !publicKey || hasSaved}
+                  disabled={isSubmitting || !publicKey}
                   className="w-full mt-4 bg-gradient-to-r from-yellow-600 to-yellow-700 hover:from-yellow-700 hover:to-yellow-800 disabled:opacity-50 disabled:cursor-not-allowed px-4 py-3 rounded-lg font-bold transition transform hover:scale-105 active:scale-95 shadow-lg text-white"
                 >
-                  {!publicKey ? '🔗 Connect Wallet to Save' : 
-                  hasSaved ? '✅ Score Saved!' :
-                  isSubmitting ? '💾 Saving...' : 
-                  '🏆 Save to Leaderboard'}
+                  {!publicKey ? '🔗 Connect Wallet to Save' : isSubmitting ? '💾 Saving...' : '🏆 Save to Leaderboard'}
                 </button>
-              )}
-
               </div>
 
-              {/* Trading Statistics */}
               <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-6 text-white border border-slate-700 shadow-2xl">
                 <h3 className="text-xl font-bold mb-4">📊 Trading Stats</h3>
                 <div className="space-y-3 text-sm">
@@ -457,7 +371,6 @@ useEffect(() => {
                 </div>
               </div>
 
-              {/* Network Info */}
               <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-4 text-white border border-slate-700 text-sm shadow-2xl">
                 <p className="mb-2"><span className="font-bold text-blue-400">⚡ Network:</span> Solana Devnet</p>
                 <p className="mb-2"><span className="font-bold text-blue-400">💵 Start:</span> $1,000</p>
@@ -466,7 +379,6 @@ useEffect(() => {
             </div>
           </div>
 
-          {/* Leaderboard Section */}
           <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-8 text-white border border-slate-700 shadow-2xl">
             <h2 className="text-3xl font-bold mb-6">🏆 Global Leaderboard</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
