@@ -9,12 +9,19 @@ import { collection, addDoc, query, orderBy, limit, getDocs, where } from 'fireb
 
 export default function Home() {
   const { publicKey } = useWallet();
-  useEffect(() => {
-  // Очистка старого выбора кошелька при загрузке
+
+useEffect(() => {
+  // Полная очистка при первой загрузке без кошелька
   if (typeof window !== 'undefined' && !publicKey) {
-    window.localStorage.removeItem('walletName');
+    const keys = Object.keys(window.localStorage);
+    keys.forEach(key => {
+      if (key.includes('wallet') || key.includes('solana')) {
+        window.localStorage.removeItem(key);
+      }
+    });
   }
-}, [publicKey]);
+}, []);
+
 
   const [balance, setBalance] = useState(1000);
   const [price, setPrice] = useState(100);
