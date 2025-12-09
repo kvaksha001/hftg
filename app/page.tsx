@@ -9,20 +9,6 @@ import { collection, addDoc, query, orderBy, limit, getDocs, where } from 'fireb
 
 export default function Home() {
   const { publicKey } = useWallet();
-
-useEffect(() => {
-  // Полная очистка при первой загрузке без кошелька
-  if (typeof window !== 'undefined' && !publicKey) {
-    const keys = Object.keys(window.localStorage);
-    keys.forEach(key => {
-      if (key.includes('wallet') || key.includes('solana')) {
-        window.localStorage.removeItem(key);
-      }
-    });
-  }
-}, []);
-
-
   const [balance, setBalance] = useState(1000);
   const [price, setPrice] = useState(100);
   const [holdings, setHoldings] = useState(0);
