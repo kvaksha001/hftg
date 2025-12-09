@@ -234,6 +234,42 @@ export default function Home() {
           </div>
         )}
       </div>
+                      {/* Leaderboard */}
+                <div className="bg-gradient-to-br from-slate-700 to-slate-800 rounded-lg p-6 text-white border border-slate-600 shadow-lg mt-6">
+                  <h3 className="text-2xl font-bold mb-4">🏆 Top Traders</h3>
+                  <div className="space-y-2">
+                    {[
+                      { rank: 1, name: 'Alpha Trader', profit: 2450 },
+                      { rank: 2, name: 'Market Maker', profit: 1890 },
+                      { rank: 3, name: 'Crypto King', profit: 1650 },
+                      { rank: 4, name: 'You', profit: profitLoss, highlight: true },
+                      { rank: 5, name: 'Day Trader', profit: 890 },
+                      { rank: 6, name: 'Smart Bot', profit: 750 },
+                      { rank: 7, name: 'Swing Player', profit: 620 },
+                      { rank: 8, name: 'Whale', profit: 540 },
+                      { rank: 9, name: 'Hedge Fund', profit: 420 },
+                      { rank: 10, name: 'Tech Trader', profit: 380 },
+                    ].map((trader) => (
+                      <div 
+                        key={trader.rank}
+                        className={`flex justify-between items-center p-3 rounded border ${
+                          trader.highlight 
+                            ? 'bg-yellow-500/20 border-yellow-500/50 border-2' 
+                            : 'bg-slate-600/50 border-slate-500/30'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className="text-xl font-bold text-yellow-400 w-6">{trader.rank}</span>
+                          <span className={trader.highlight ? 'text-yellow-400 font-bold' : 'text-slate-200'}>{trader.name}</span>
+                        </div>
+                        <span className={trader.highlight ? 'text-yellow-400 font-bold text-lg' : 'text-green-400 font-bold'}>
+                          +${trader.profit.toFixed(2)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
     </main>
   );
 }
