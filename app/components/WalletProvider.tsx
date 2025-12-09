@@ -11,7 +11,6 @@ import '@solana/wallet-adapter-react-ui/styles.css';
 export function WalletProvider({ children }: { children: ReactNode }) {
   const endpoint = useMemo(() => clusterApiUrl('devnet'), []);
   
-  // НЕ используй useMemo для wallets
   const wallets = [
     new SolflareWalletAdapter(),
     new PhantomWalletAdapter(),
