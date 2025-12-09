@@ -192,9 +192,9 @@ export default function Home() {
     </span>
     <button
       onClick={() => {
-        window.localStorage.clear();
-        window.location.reload();
-      }}
+  window.location.reload();
+}}
+
       className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-white font-medium transition"
     >
       Disconnect
