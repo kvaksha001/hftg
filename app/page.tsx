@@ -20,6 +20,7 @@ export default function Home() {
   const [profitHistory, setProfitHistory] = useState<Array<{time: number, profit: number}>>([]);
   const [leaderboard, setLeaderboard] = useState<Array<{rank: number, name: string, profit: number, trades: number}>>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [hasSaved, setHasSaved] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -140,29 +141,45 @@ useEffect(() => {
     setSellAmount('');
   };
 
-  const handleSaveScore = async () => {
-    if (!publicKey) {
-      alert('Please connect your wallet first!');
-      return;
-    }
+const handleSaveScore = async () => {
+  if (!publicKey) {
+    alert('Please connect your wallet first!');
+    return;
+  }
 
-    setIsSubmitting(true);
-    try {
-      const totalValue = balance + (holdings * price);
-      const profitLoss = totalValue - 1000;
-      
-      await addDoc(collection(db, 'scores'), {
-        playerName: publicKey.toBase58().slice(0, 8) + '...',
-        playerAddress: publicKey.toBase58(),
-        profit: profitLoss,
-        trades: history.length,
-        finalBalance: balance,
-        finalHoldings: holdings,
-        timestamp: new Date(),
-        finalPrice: price
-      });
+  // Проверяем в localStorage
+  const savedKey = `saved_${publicKey.toBase58()}`;
+  if (localStorage.getItem(savedKey)) {
+    alert('You already saved a score with this wallet!');
+    return;
+  }
 
-      alert('✅ Score saved to leaderboard!');
+  if (hasSaved) {
+    alert('You already saved this score!');
+    return;
+  }
+
+  setIsSubmitting(true);
+  try {
+    const totalValue = balance + (holdings * price);
+    const profitLoss = totalValue - 1000;
+    
+    await addDoc(collection(db, 'scores'), {
+      playerName: publicKey.toBase58().slice(0, 8) + '...',
+      playerAddress: publicKey.toBase58(),
+      profit: profitLoss,
+      trades: history.length,
+      finalBalance: balance,
+      finalHoldings: holdings,
+      timestamp: new Date(),
+      finalPrice: price
+    });
+
+    // Сохраняем в localStorage
+    localStorage.setItem(savedKey, 'true');
+    setHasSaved(true);
+    alert('✅ Score saved to leaderboard!');
+
     } catch (error) {
       console.error('Error saving score:', error);
       alert('Error saving score');
