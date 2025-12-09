@@ -185,7 +185,22 @@ export default function Home() {
             </h1>
             <p className="text-slate-400 text-sm mt-1">High-Frequency Trading Game • Powered by Solana • ⚡ Real-Time</p>
           </div>
-          <WalletMultiButton />
+          <div className="flex gap-3 items-center">
+  <WalletMultiButton />
+  {publicKey && (
+    <button
+      onClick={() => {
+        localStorage.clear();
+        sessionStorage.clear();
+        window.location.reload();
+      }}
+      className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-white text-sm font-medium transition"
+    >
+      Change Wallet
+    </button>
+  )}
+</div>
+
         </div>
 
         <div className="space-y-6">
