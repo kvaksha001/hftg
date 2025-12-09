@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { db } from '@/lib/firebase';
+import { collection, addDoc, query, orderBy, limit, getDocs, where } from 'firebase/firestore';
 
 export default function Home() {
   const { publicKey } = useWallet();
@@ -12,10 +14,12 @@ export default function Home() {
   const [holdings, setHoldings] = useState(0);
   const [buyAmount, setBuyAmount] = useState('');
   const [sellAmount, setSellAmount] = useState('');
-  const [history, setHistory] = useState<Array<{type: string, amount: number, price: number, profit?: number}>>([]);
+  const [history, setHistory] = useState<Array<{type: string, amount: number, price: number}>>([]);
   const [priceHistory, setPriceHistory] = useState<Array<{time: number, price: number}>>([]);
   const [profitHistory, setProfitHistory] = useState<Array<{time: number, profit: number}>>([]);
   const [timeCounter, setTimeCounter] = useState(0);
+  const [leaderboard, setLeaderboard] = useState<Array<{rank: number, name: string, profit: number, trades: number}>>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Real-time price simulation
   useEffect(() => {
@@ -50,6 +54,33 @@ export default function Home() {
     setTimeCounter(t => t + 1);
   }, [balance, holdings, price]);
 
+  // Fetch leaderboard
+  useEffect(() => {
+    const fetchLeaderboard = async () => {
+      try {
+        const q = query(
+          collection(db, 'scores'),
+          orderBy('profit', 'desc'),
+          limit(10)
+        );
+        const snapshot = await getDocs(q);
+        const scores = snapshot.docs.map((doc, index) => ({
+          rank: index + 1,
+          name: doc.data().playerName,
+          profit: doc.data().profit,
+          trades: doc.data().trades
+        }));
+        setLeaderboard(scores);
+      } catch (error) {
+        console.log('Leaderboard loading...');
+      }
+    };
+
+    fetchLeaderboard();
+    const interval = setInterval(fetchLeaderboard, 5000); // Обновляй каждые 5 сек
+    return () => clearInterval(interval);
+  }, []);
+
   const handleBuy = () => {
     const amount = parseFloat(buyAmount);
     if (!amount || amount <= 0) return;
@@ -81,6 +112,38 @@ export default function Home() {
     setSellAmount('');
   };
 
+  // Save score to Firebase
+  const handleSaveScore = async () => {
+    if (!publicKey) {
+      alert('Please connect your wallet first!');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const totalValue = balance + (holdings * price);
+      const profitLoss = totalValue - 1000;
+      
+      await addDoc(collection(db, 'scores'), {
+        playerName: publicKey.toBase58().slice(0, 8) + '...',
+        playerAddress: publicKey.toBase58(),
+        profit: profitLoss,
+        trades: history.length,
+        finalBalance: balance,
+        finalHoldings: holdings,
+        timestamp: new Date(),
+        finalPrice: price
+      });
+
+      alert('✅ Score saved to leaderboard!');
+      setIsSubmitting(false);
+    } catch (error) {
+      console.error('Error saving score:', error);
+      alert('Error saving score');
+      setIsSubmitting(false);
+    }
+  };
+
   const totalValue = balance + (holdings * price);
   const profitLoss = totalValue - 1000;
 
@@ -95,7 +158,6 @@ export default function Home() {
 
   for (let i = 0; i < sellTrades.length; i++) {
     const sellPrice = sellTrades[i].price;
-    // Find corresponding buy
     let buyPrice = 100;
     for (let j = history.length - 1; j >= 0; j--) {
       if (history[j].type === 'BUY' && history[j].price < sellPrice) {
@@ -284,6 +346,15 @@ export default function Home() {
                       </p>
                     </div>
                   </div>
+
+                  {/* Save Score Button */}
+                  <button
+                    onClick={handleSaveScore}
+                    disabled={isSubmitting}
+                    className="w-full mt-4 bg-gradient-to-r from-yellow-600 to-yellow-700 hover:from-yellow-700 hover:to-yellow-800 disabled:opacity-50 px-4 py-3 rounded-lg font-bold transition transform hover:scale-105 active:scale-95 shadow-lg text-white"
+                  >
+                    {isSubmitting ? '💾 Saving...' : '🏆 Save to Leaderboard'}
+                  </button>
                 </div>
 
                 {/* Trading Statistics */}
@@ -319,6 +390,49 @@ export default function Home() {
                   <p className="mb-2"><span className="font-bold text-blue-400">💵 Start:</span> $1,000</p>
                   <p><span className="font-bold text-blue-400">🎯 Goal:</span> Maximize Profit!</p>
                 </div>
+              </div>
+            </div>
+
+            {/* Leaderboard Section */}
+            <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-8 text-white border border-slate-700 shadow-2xl">
+              <h2 className="text-3xl font-bold mb-6">🏆 Global Leaderboard</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {leaderboard.length === 0 ? (
+                  <p className="col-span-full text-slate-400 text-center py-8">Be the first to join the leaderboard! Save your score.</p>
+                ) : (
+                  leaderboard.map((trader) => (
+                    <div 
+                      key={trader.rank}
+                      className={`p-4 rounded-lg border ${
+                        trader.rank === 1 
+                          ? 'bg-yellow-500/20 border-yellow-500/50 ring-2 ring-yellow-500/30' 
+                          : trader.rank === 2 
+                          ? 'bg-gray-400/20 border-gray-400/50' 
+                          : trader.rank === 3 
+                          ? 'bg-orange-500/20 border-orange-500/50'
+                          : 'bg-slate-700/50 border-slate-600'
+                      }`}
+                    >
+                      <div className="flex justify-between items-center mb-2">
+                        <span className={`text-2xl font-bold ${
+                          trader.rank === 1 ? 'text-yellow-400' : 
+                          trader.rank === 2 ? 'text-gray-300' : 
+                          trader.rank === 3 ? 'text-orange-400' : 
+                          'text-slate-300'
+                        }`}>
+                          #{trader.rank}
+                        </span>
+                        <span className="text-xs px-2 py-1 bg-slate-700 rounded">
+                          {trader.trades} trades
+                        </span>
+                      </div>
+                      <p className="text-slate-200 font-semibold mb-2 truncate">{trader.name}</p>
+                      <p className={`text-xl font-bold ${trader.profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {trader.profit >= 0 ? '+' : ''}${trader.profit.toFixed(2)}
+                      </p>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           </div>
