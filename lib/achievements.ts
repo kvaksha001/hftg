@@ -78,3 +78,20 @@ export const ACHIEVEMENTS: Achievement[] = [
     condition: (stats) => stats.maxHoldings >= 100
   }
 ];
+export const checkAchievements = (stats: any): string[] => {
+  const unlocked = JSON.parse(localStorage.getItem('unlockedAchievements') || '[]');
+  const newUnlocks: string[] = [];
+
+  ACHIEVEMENTS.forEach(achievement => {
+    if (!unlocked.includes(achievement.id) && achievement.condition(stats)) {
+      newUnlocks.push(achievement.id);
+      unlocked.push(achievement.id);
+    }
+  });
+
+  if (newUnlocks.length > 0) {
+    localStorage.setItem('unlockedAchievements', JSON.stringify(unlocked));
+  }
+
+  return newUnlocks;
+};

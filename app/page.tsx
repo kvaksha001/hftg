@@ -6,6 +6,10 @@ import { useWallet } from '@solana/wallet-adapter-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { db } from '@/lib/firebase';
 import { collection, addDoc, query, orderBy, limit, getDocs } from 'firebase/firestore';
+import confetti from 'canvas-confetti';
+import { ACHIEVEMENTS, checkAchievements } from '@/lib/achievements';
+import { playSound } from '@/lib/sounds';
+import Link from 'next/link';
 
 export default function Home() {
   const { publicKey } = useWallet();
@@ -21,6 +25,11 @@ export default function Home() {
   const [leaderboard, setLeaderboard] = useState<Array<{rank: number, name: string, profit: number, trades: number}>>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [achievementNotification, setAchievementNotification] = useState<string | null>(null);
+  const [lastProfit, setLastProfit] = useState(0);
+  const [winStreak, setWinStreak] = useState(0);
+  const [biggestTrade, setBiggestTrade] = useState(0);
+  const [maxHoldings, setMaxHoldings] = useState(0);
 
   useEffect(() => {
     setMounted(true);
@@ -80,6 +89,14 @@ export default function Home() {
       const updated = [...h, { time: h.length, profit: profitLoss }];
       return updated.slice(-60);
     });
+
+    // Profit/loss sounds
+    if (profitLoss > lastProfit && lastProfit !== 0 && profitLoss > 0) {
+      playSound('profit');
+    } else if (profitLoss < lastProfit && lastProfit !== 0 && profitLoss < -50) {
+      playSound('loss');
+    }
+    setLastProfit(profitLoss);
   }, [balance, holdings, price]);
 
   // Fetch leaderboard
@@ -109,6 +126,39 @@ export default function Home() {
     return () => clearInterval(interval);
   }, []);
 
+  const checkAndShowAchievements = () => {
+    const currentProfit = (balance + holdings * price) - 1000;
+    
+    const stats = {
+      totalTrades: history.length,
+      profit: currentProfit,
+      winStreak,
+      biggestTrade,
+      maxHoldings,
+      biggestLoss: currentProfit < -200 ? currentProfit : 0
+    };
+    
+    // Save stats
+    localStorage.setItem('playerStats', JSON.stringify(stats));
+    
+    const newAchievements = checkAchievements(stats);
+    
+    if (newAchievements.length > 0) {
+      playSound('achievement');
+      confetti({
+        particleCount: 100,
+        spread: 70,
+        origin: { y: 0.6 }
+      });
+      
+      const achievement = ACHIEVEMENTS.find(a => a.id === newAchievements[0]);
+      if (achievement) {
+        setAchievementNotification(`${achievement.icon} ${achievement.title} unlocked!`);
+        setTimeout(() => setAchievementNotification(null), 5000);
+      }
+    }
+  };
+
   const handleBuy = () => {
     const amount = parseFloat(buyAmount);
     if (!amount || amount <= 0) return;
@@ -116,13 +166,24 @@ export default function Home() {
     const cost = amount * price;
     if (cost > balance) {
       alert('Insufficient funds!');
+      playSound('loss');
       return;
     }
 
+    playSound('buy');
     setBalance(prev => prev - cost);
-    setHoldings(prev => prev + amount);
+    setHoldings(prev => {
+      const newHoldings = prev + amount;
+      if (newHoldings > maxHoldings) setMaxHoldings(newHoldings);
+      return newHoldings;
+    });
     setHistory(prev => [...prev, { type: 'BUY', amount, price }]);
     setBuyAmount('');
+    
+    if (cost > biggestTrade) setBiggestTrade(cost);
+    
+    // Check achievements
+    setTimeout(() => checkAndShowAchievements(), 100);
   };
 
   const handleSell = () => {
@@ -130,14 +191,32 @@ export default function Home() {
     if (!amount || amount <= 0) return;
     if (amount > holdings) {
       alert('Insufficient tokens!');
+      playSound('loss');
       return;
     }
 
     const revenue = amount * price;
+    playSound('sell');
+    
+    // Calculate if profitable
+    const lastBuyPrice = [...history].reverse().find(h => h.type === 'BUY')?.price || 100;
+    const tradeProfit = (price - lastBuyPrice) * amount;
+    
+    if (tradeProfit > 0) {
+      setWinStreak(prev => prev + 1);
+    } else {
+      setWinStreak(0);
+    }
+    
     setBalance(prev => prev + revenue);
     setHoldings(prev => prev - amount);
     setHistory(prev => [...prev, { type: 'SELL', amount, price }]);
     setSellAmount('');
+    
+    if (revenue > biggestTrade) setBiggestTrade(revenue);
+    
+    // Check achievements
+    setTimeout(() => checkAndShowAchievements(), 100);
   };
 
   const handleSaveScore = async () => {
@@ -174,6 +253,7 @@ export default function Home() {
       // Сохраняем последний профит
       localStorage.setItem(savedKey, profitLoss.toString());
       alert('✅ Score saved to leaderboard!');
+      playSound('achievement');
     } catch (error) {
       console.error('Error saving score:', error);
       alert('Error saving score');
@@ -222,6 +302,12 @@ export default function Home() {
             <p className="text-slate-400 text-sm mt-1">High-Frequency Trading Game • Powered by Solana • ⚡ Real-Time</p>
           </div>
           <div className="flex gap-3 items-center">
+            <Link
+              href="/profile"
+              className="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg text-white text-sm font-medium transition"
+            >
+              👤 Profile
+            </Link>
             <WalletMultiButton />
             <button
               onClick={() => {
@@ -287,7 +373,6 @@ export default function Home() {
                     className="w-full px-4 py-3 bg-slate-700 rounded-lg mb-3 text-white placeholder-slate-400 border border-slate-600 focus:border-green-500 focus:outline-none transition"
                   />
                   
-                  {/* Quick amount buttons */}
                   <div className="flex gap-2 mb-3">
                     {[1, 2, 5, 10, 100].map(amount => (
                       <button
@@ -321,7 +406,6 @@ export default function Home() {
                     className="w-full px-4 py-3 bg-slate-700 rounded-lg mb-3 text-white placeholder-slate-400 border border-slate-600 focus:border-red-500 focus:outline-none transition"
                   />
                   
-                  {/* Quick amount buttons */}
                   <div className="flex gap-2 mb-3">
                     {[1, 2, 5, 10, 100].map(amount => (
                       <button
@@ -505,6 +589,13 @@ export default function Home() {
           </div>
         </div>
       </div>
+
+      {/* Achievement Notification */}
+      {achievementNotification && (
+        <div className="fixed top-20 right-8 bg-gradient-to-r from-green-500 to-blue-500 text-white px-6 py-4 rounded-lg shadow-2xl animate-bounce z-50">
+          <p className="font-bold text-lg">{achievementNotification}</p>
+        </div>
+      )}
     </main>
   );
 }
