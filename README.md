@@ -227,6 +227,9 @@ Pull requests welcome! Open issues for bugs/features.
 Built by **kvaksha001**
 
 - GitHub: [@kvaksha001](https://github.com/kvaksha001)
+- Twitter: [@kvaksha001](https://twitter.com/kvaksha001)
+- Telegram: @zxck1d
+
 
 ---
 
