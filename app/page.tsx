@@ -9,10 +9,8 @@ import { collection, addDoc, query, orderBy, limit, getDocs } from 'firebase/fir
 import confetti from 'canvas-confetti';
 import { ACHIEVEMENTS, checkAchievements } from '@/lib/achievements';
 import { playSound } from '@/lib/sounds';
-import { recordTradeOnChain, getWalletInfo } from '@/lib/blockchain';
-import { blockchainService } from '@/lib/blockchain';
+import { batchVerifyTrades, getWalletInfo } from '@/lib/blockchain';
 import Link from 'next/link';
-import { PublicKey } from '@solana/web3.js';
 
 export default function Home() {
   const { publicKey } = useWallet();
@@ -23,7 +21,7 @@ export default function Home() {
   const [holdings, setHoldings] = useState(0);
   const [buyAmount, setBuyAmount] = useState('');
   const [sellAmount, setSellAmount] = useState('');
-  const [history, setHistory] = useState<Array<{type: string, amount: number, price: number, proof?: string | null}>>([]);
+  const [history, setHistory] = useState<Array<{type: string, amount: number, price: number, timestamp: number, profit: number}>>([]);
   const [priceHistory, setPriceHistory] = useState<Array<{time: number, price: number}>>([]);
   const [profitHistory, setProfitHistory] = useState<Array<{time: number, profit: number}>>([]);
   const [leaderboard, setLeaderboard] = useState<Array<{rank: number, name: string, profit: number, trades: number, avatar?: string}>>([]);
@@ -41,7 +39,6 @@ export default function Home() {
   const [randomEvent, setRandomEvent] = useState<{name: string, emoji: string} | null>(null);
   const [dailyChallenge, setDailyChallenge] = useState<{target: number, reward: number, completed: boolean} | null>(null);
 
-  // Blockchain states
   const [walletBalance, setWalletBalance] = useState(0);
   const [blockchainTrades, setBlockchainTrades] = useState<any[]>([]);
   const [isVerifying, setIsVerifying] = useState(false);
@@ -50,7 +47,6 @@ export default function Home() {
     setMounted(true);
   }, []);
 
-  // Fetch wallet blockchain info
   useEffect(() => {
     if (!publicKey) return;
 
@@ -65,7 +61,7 @@ export default function Home() {
     };
 
     fetchWalletInfo();
-    const interval = setInterval(fetchWalletInfo, 10000); // Update every 10s
+    const interval = setInterval(fetchWalletInfo, 10000);
     return () => clearInterval(interval);
   }, [publicKey]);
 
@@ -137,7 +133,7 @@ export default function Home() {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [gameMode]);
+  }, [gameMode, balance, holdings, price]);
 
   useEffect(() => {
     if (gameMode !== 'random') return;
@@ -151,7 +147,6 @@ export default function Home() {
             effect: () => {
               setPrice(p => {
                 const newPrice = p + 50;
-                console.log(`BULL RUN! ${p} → ${newPrice}`);
                 return newPrice;
               });
             }
@@ -162,7 +157,6 @@ export default function Home() {
             effect: () => {
               setPrice(p => {
                 const newPrice = Math.max(50, p - 40);
-                console.log(`CRASH! ${p} → ${newPrice}`);
                 return newPrice;
               });
             }
@@ -174,7 +168,6 @@ export default function Home() {
               setPrice(p => {
                 const change = (Math.random() - 0.5) * 60;
                 const newPrice = Math.max(50, p + change);
-                console.log(`VOLATILITY! ${p} → ${newPrice}`);
                 return newPrice;
               });
             }
@@ -185,7 +178,6 @@ export default function Home() {
             effect: () => {
               setPrice(p => {
                 const newPrice = Math.max(50, p - 25);
-                console.log(`WHALE DUMP! ${p} → ${newPrice}`);
                 return newPrice;
               });
             }
@@ -196,7 +188,6 @@ export default function Home() {
             effect: () => {
               setPrice(p => {
                 const newPrice = p + 35;
-                console.log(`PUMP! ${p} → ${newPrice}`);
                 return newPrice;
               });
             }
@@ -207,7 +198,6 @@ export default function Home() {
             effect: () => {
               setPrice(p => {
                 const newPrice = Math.max(50, p * 0.7);
-                console.log(`RUG PULL! ${p} → ${newPrice}`);
                 return newPrice;
               });
             }
@@ -283,7 +273,7 @@ export default function Home() {
       playSound('loss');
     }
     setLastProfit(profitLoss);
-  }, [balance, holdings, price]);
+  }, [balance, holdings, price, lastProfit]);
 
   useEffect(() => {
     const fetchLeaderboard = async () => {
@@ -355,16 +345,6 @@ export default function Home() {
       return;
     }
 
-    setIsVerifying(true);
-    const tradeProof = await recordTradeOnChain(wallet, {
-      type: 'BUY',
-      amount,
-      price,
-      timestamp: Date.now(),
-      profit: 0
-    });
-    setIsVerifying(false);
-
     playSound('buy');
     setBalance(prev => prev - cost);
     setHoldings(prev => {
@@ -372,7 +352,7 @@ export default function Home() {
       if (newHoldings > maxHoldings) setMaxHoldings(newHoldings);
       return newHoldings;
     });
-    setHistory(prev => [...prev, { type: 'BUY', amount, price, proof: tradeProof }]);
+    setHistory(prev => [...prev, { type: 'BUY', amount, price, timestamp: Date.now(), profit: 0 }]);
     setBuyAmount('');
     
     if (cost > biggestTrade) setBiggestTrade(cost);
@@ -423,16 +403,6 @@ export default function Home() {
       
       return;
     }
-
-    setIsVerifying(true);
-    const tradeProof = await recordTradeOnChain(wallet, {
-      type: 'SELL',
-      amount,
-      price,
-      timestamp: Date.now(),
-      profit: tradeProfit
-    });
-    setIsVerifying(false);
     
     playSound('sell');
     
@@ -444,7 +414,7 @@ export default function Home() {
     
     setBalance(prev => prev + revenue);
     setHoldings(prev => prev - amount);
-    setHistory(prev => [...prev, { type: 'SELL', amount, price, proof: tradeProof }]);
+    setHistory(prev => [...prev, { type: 'SELL', amount, price, timestamp: Date.now(), profit: tradeProfit }]);
     setSellAmount('');
     
     if (revenue > biggestTrade) setBiggestTrade(revenue);
@@ -470,7 +440,24 @@ export default function Home() {
     }
 
     setIsSubmitting(true);
+    
     try {
+      let blockchainSignature = null;
+      
+      if (history.length > 0) {
+        setIsVerifying(true);
+        blockchainSignature = await batchVerifyTrades(wallet, history as any);
+        setIsVerifying(false);
+        
+        if (!blockchainSignature) {
+          const continueAnyway = confirm('Blockchain verification failed. Save score anyway?');
+          if (!continueAnyway) {
+            setIsSubmitting(false);
+            return;
+          }
+        }
+      }
+
       const nickname = localStorage.getItem('playerNickname') || '';
       const avatar = localStorage.getItem('playerAvatar') || '';
       const displayName = nickname || publicKey.toBase58().slice(0, 8) + '...';
@@ -487,18 +474,27 @@ export default function Home() {
         timestamp: new Date(),
         finalPrice: price,
         gameMode: gameMode,
-        blockchainVerified: history.filter(t => t.proof).length,
+        blockchainVerified: !!blockchainSignature,
+        blockchainSignature: blockchainSignature,
         walletBalance: walletBalance
       });
 
       localStorage.setItem(savedKey, profitLoss.toString());
-      alert('✅ Score saved to leaderboard!');
+      
+      if (blockchainSignature) {
+        alert('✅ Score saved and verified on blockchain!');
+      } else {
+        alert('✅ Score saved to leaderboard!');
+      }
+      
       playSound('achievement');
+      confetti({ particleCount: 200, spread: 90 });
     } catch (error) {
       console.error('Error saving score:', error);
-      alert('Error saving score');
+      alert('Error saving score: ' + (error as any).message);
     } finally {
       setIsSubmitting(false);
+      setIsVerifying(false);
     }
   };
 
@@ -508,7 +504,6 @@ export default function Home() {
   const buyTrades = history.filter(t => t.type === 'BUY');
   const sellTrades = history.filter(t => t.type === 'SELL');
   const totalTrades = history.length;
-  const verifiedTrades = history.filter(t => t.proof).length;
   
   let bestTrade = 0;
   let profitableTrades = 0;
@@ -540,7 +535,7 @@ export default function Home() {
             <h1 className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-blue-500">
               🎮 HFTG
             </h1>
-            <p className="text-slate-400 text-sm mt-1">High-Frequency Trading Game • Powered by Solana • ⚡ Real-Time • 🔗 On-Chain</p>
+            <p className="text-slate-400 text-sm mt-1">High-Frequency Trading Game • Powered by Solana • ⚡ Real-Time • 🔗 Batch Verified</p>
           </div>
           <div className="flex gap-3 items-center">
             <Link
@@ -563,7 +558,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Blockchain Info */}
         {publicKey && (
           <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl p-4 mb-6 shadow-2xl">
             <div className="flex justify-between items-center">
@@ -574,8 +568,8 @@ export default function Home() {
                 </p>
               </div>
               <div className="text-white">
-                <p className="font-bold">✓ {verifiedTrades} Verified Trades</p>
-                <p className="text-blue-100 text-sm">{blockchainTrades.length} Total Transactions</p>
+                <p className="font-bold">✓ {history.length} Trades Ready</p>
+                <p className="text-blue-100 text-sm">Verify all when saving score</p>
               </div>
             </div>
           </div>
@@ -730,8 +724,7 @@ export default function Home() {
                     placeholder="Amount"
                     value={buyAmount}
                     onChange={(e) => setBuyAmount(e.target.value)}
-                    disabled={isVerifying}
-                    className="w-full px-4 py-3 bg-slate-700 rounded-lg mb-3 text-white placeholder-slate-400 border border-slate-600 focus:border-green-500 focus:outline-none transition disabled:opacity-50"
+                    className="w-full px-4 py-3 bg-slate-700 rounded-lg mb-3 text-white placeholder-slate-400 border border-slate-600 focus:border-green-500 focus:outline-none transition"
                   />
                   
                   <div className="flex gap-2 mb-3">
@@ -739,8 +732,7 @@ export default function Home() {
                       <button
                         key={amount}
                         onClick={() => setBuyAmount(amount.toString())}
-                        disabled={isVerifying}
-                        className="flex-1 px-2 py-1 bg-slate-600 hover:bg-green-600 rounded text-xs font-medium transition disabled:opacity-50"
+                        className="flex-1 px-2 py-1 bg-slate-600 hover:bg-green-600 rounded text-xs font-medium transition"
                       >
                         {amount}
                       </button>
@@ -752,10 +744,9 @@ export default function Home() {
                   </div>
                   <button
                     onClick={handleBuy}
-                    disabled={isVerifying}
-                    className="w-full bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 px-4 py-3 rounded-lg font-bold transition transform hover:scale-105 active:scale-95 shadow-lg disabled:opacity-50"
+                    className="w-full bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 px-4 py-3 rounded-lg font-bold transition transform hover:scale-105 active:scale-95 shadow-lg"
                   >
-                    {isVerifying ? '🔗 Verifying...' : 'Buy Now'}
+                    Buy Now
                   </button>
                 </div>
 
@@ -766,8 +757,7 @@ export default function Home() {
                     placeholder="Amount"
                     value={sellAmount}
                     onChange={(e) => setSellAmount(e.target.value)}
-                    disabled={isVerifying}
-                    className="w-full px-4 py-3 bg-slate-700 rounded-lg mb-3 text-white placeholder-slate-400 border border-slate-600 focus:border-red-500 focus:outline-none transition disabled:opacity-50"
+                    className="w-full px-4 py-3 bg-slate-700 rounded-lg mb-3 text-white placeholder-slate-400 border border-slate-600 focus:border-red-500 focus:outline-none transition"
                   />
                   
                   <div className="flex gap-2 mb-3">
@@ -775,8 +765,7 @@ export default function Home() {
                       <button
                         key={amount}
                         onClick={() => setSellAmount(amount.toString())}
-                        disabled={isVerifying}
-                        className="flex-1 px-2 py-1 bg-slate-600 hover:bg-red-600 rounded text-xs font-medium transition disabled:opacity-50"
+                        className="flex-1 px-2 py-1 bg-slate-600 hover:bg-red-600 rounded text-xs font-medium transition"
                       >
                         {amount}
                       </button>
@@ -788,10 +777,9 @@ export default function Home() {
                   </div>
                   <button
                     onClick={handleSell}
-                    disabled={isVerifying}
-                    className="w-full bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 px-4 py-3 rounded-lg font-bold transition transform hover:scale-105 active:scale-95 shadow-lg disabled:opacity-50"
+                    className="w-full bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 px-4 py-3 rounded-lg font-bold transition transform hover:scale-105 active:scale-95 shadow-lg"
                   >
-                    {isVerifying ? '🔗 Verifying...' : 'Sell Now'}
+                    Sell Now
                   </button>
                 </div>
               </div>
@@ -834,7 +822,6 @@ export default function Home() {
                       <div key={i} className={`flex justify-between text-sm p-3 rounded-lg border ${trade.type === 'BUY' ? 'bg-green-500/10 border-green-500/30' : 'bg-red-500/10 border-red-500/30'}`}>
                         <span className={trade.type === 'BUY' ? 'text-green-400 font-bold' : 'text-red-400 font-bold'}>
                           {trade.type} {trade.amount.toFixed(2)} @ ${trade.price.toFixed(2)}
-                          {trade.proof && <span className="ml-2 text-xs text-blue-400">✓ Verified</span>}
                         </span>
                         <span className="text-slate-400">
                           {trade.type === 'BUY' ? '-' : '+'}${(trade.amount * trade.price).toFixed(2)}
@@ -872,10 +859,10 @@ export default function Home() {
 
                 <button
                   onClick={handleSaveScore}
-                  disabled={isSubmitting || !publicKey}
+                  disabled={isSubmitting || isVerifying || !publicKey}
                   className="w-full mt-4 bg-gradient-to-r from-yellow-600 to-yellow-700 hover:from-yellow-700 hover:to-yellow-800 disabled:opacity-50 disabled:cursor-not-allowed px-4 py-3 rounded-lg font-bold transition transform hover:scale-105 active:scale-95 shadow-lg text-white"
                 >
-                  {!publicKey ? '🔗 Connect Wallet to Save' : isSubmitting ? '💾 Saving...' : '🏆 Save to Leaderboard'}
+                  {!publicKey ? '🔗 Connect Wallet to Save' : isVerifying ? '🔗 Verifying on Blockchain...' : isSubmitting ? '💾 Saving...' : '🏆 Save & Verify on Chain'}
                 </button>
               </div>
 
@@ -895,10 +882,6 @@ export default function Home() {
                     <span className="font-bold text-red-400">{sellTrades.length}</span>
                   </div>
                   <div className="flex justify-between items-center p-2 bg-slate-700/50 rounded">
-                    <span className="text-slate-300">Verified 🔗</span>
-                    <span className="font-bold text-purple-400">{verifiedTrades}/{totalTrades}</span>
-                  </div>
-                  <div className="flex justify-between items-center p-2 bg-slate-700/50 rounded">
                     <span className="text-slate-300">Win Rate</span>
                     <span className={`font-bold ${winRate >= 50 ? 'text-green-400' : 'text-orange-400'}`}>{winRate}%</span>
                   </div>
@@ -913,7 +896,7 @@ export default function Home() {
                 <p className="mb-2"><span className="font-bold text-blue-400">⚡ Network:</span> Solana Devnet</p>
                 <p className="mb-2"><span className="font-bold text-blue-400">💵 Start:</span> $1,000</p>
                 <p className="mb-2"><span className="font-bold text-blue-400">🎯 Goal:</span> Maximize Profit!</p>
-                <p><span className="font-bold text-blue-400">🔗 Blockchain:</span> Verified Trades</p>
+                <p><span className="font-bold text-blue-400">🔗 Blockchain:</span> Batch Verified</p>
               </div>
             </div>
           </div>

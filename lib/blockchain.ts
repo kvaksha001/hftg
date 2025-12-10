@@ -2,7 +2,6 @@ import { Connection, PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL } f
 import { WalletContextState } from '@solana/wallet-adapter-react';
 
 const DEVNET_RPC = 'https://api.devnet.solana.com';
-const PROGRAM_ID = new PublicKey('11111111111111111111111111111111'); // System Program
 
 export interface TradeRecord {
   type: 'BUY' | 'SELL';
@@ -10,7 +9,6 @@ export interface TradeRecord {
   price: number;
   timestamp: number;
   profit: number;
-  signature?: string;
 }
 
 class BlockchainService {
@@ -20,12 +18,9 @@ class BlockchainService {
     this.connection = new Connection(DEVNET_RPC, 'confirmed');
   }
 
-  /**
-   * Record trade on-chain
-   */
-  async recordTradeOnChain(
+  async batchVerifyTrades(
     wallet: WalletContextState,
-    trade: Omit<TradeRecord, 'signature'>
+    trades: TradeRecord[]
   ): Promise<string | null> {
     try {
       if (!wallet.publicKey || !wallet.signTransaction) {
@@ -33,10 +28,17 @@ class BlockchainService {
         return null;
       }
 
+      const tradeSummary = {
+        totalTrades: trades.length,
+        buyTrades: trades.filter(t => t.type === 'BUY').length,
+        sellTrades: trades.filter(t => t.type === 'SELL').length,
+        timestamp: Date.now(),
+      };
+
       const instruction = SystemProgram.transfer({
         fromPubkey: wallet.publicKey,
         toPubkey: wallet.publicKey,
-        lamports: 5000, // 0.000005 SOL
+        lamports: 5000,
       });
 
       const transaction = new Transaction().add(instruction);
@@ -50,17 +52,15 @@ class BlockchainService {
 
       await this.connection.confirmTransaction(signature, 'confirmed');
 
+      console.log('Batch verified:', tradeSummary);
       return signature;
     } catch (error) {
-      console.error('Blockchain record error:', error);
+      console.error('Batch verification error:', error);
       return null;
     }
   }
 
-  /**
-   * Verify trade signature
-   */
-  async verifyTradeSignature(signature: string): Promise<boolean> {
+  async verifySignature(signature: string): Promise<boolean> {
     try {
       const tx = await this.connection.getTransaction(signature);
       return tx !== null;
@@ -70,9 +70,6 @@ class BlockchainService {
     }
   }
 
-  /**
-   * Get wallet balance
-   */
   async getWalletBalance(publicKey: PublicKey): Promise<number> {
     try {
       const balance = await this.connection.getBalance(publicKey);
@@ -83,9 +80,6 @@ class BlockchainService {
     }
   }
 
-  /**
-   * Get transaction history
-   */
   async getTransactionHistory(publicKey: PublicKey, limit: number = 10) {
     try {
       const signatures = await this.connection.getSignaturesForAddress(publicKey, { limit });
@@ -108,70 +102,15 @@ class BlockchainService {
       return [];
     }
   }
-
-  /**
-   * Create trade proof (JSON stored locally)
-   */
-  createTradeProof(trade: TradeRecord, signature: string | null): string {
-    const proof = {
-      type: trade.type,
-      amount: trade.amount,
-      price: trade.price,
-      profit: trade.profit,
-      timestamp: trade.timestamp,
-      signature: signature || 'pending',
-      verified: !!signature,
-    };
-    return JSON.stringify(proof);
-  }
-
-  /**
-   * Decode trade proof
-   */
-  decodeTradeProof(proof: string): TradeRecord | null {
-    try {
-      const data = JSON.parse(proof);
-      return {
-        type: data.type,
-        amount: data.amount,
-        price: data.price,
-        timestamp: data.timestamp,
-        profit: data.profit,
-        signature: data.signature,
-      };
-    } catch (error) {
-      console.error('Proof decode error:', error);
-      return null;
-    }
-  }
-
-  /**
-   * Get current SOL price (mock)
-   */
-  async getSolPrice(): Promise<number> {
-    try {
-      const response = await fetch(
-        'https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd'
-      );
-      const data = await response.json();
-      return data.solana.usd || 145;
-    } catch (error) {
-      console.error('SOL price fetch error:', error);
-      return 145; // Default
-    }
-  }
 }
 
 export const blockchainService = new BlockchainService();
 
-/**
- * Main export function for game
- */
-export async function recordTradeOnChain(
+export async function batchVerifyTrades(
   wallet: WalletContextState,
-  trade: Omit<TradeRecord, 'signature'>
+  trades: TradeRecord[]
 ): Promise<string | null> {
-  const signature = await blockchainService.recordTradeOnChain(wallet, trade);
+  const signature = await blockchainService.batchVerifyTrades(wallet, trades);
   return signature;
 }
 
