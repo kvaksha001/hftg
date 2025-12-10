@@ -96,6 +96,7 @@ export default function Home() {
     const timer = setInterval(() => {
       setTimeLeft(prev => {
         if (prev <= 0) {
+          const profitLoss = (balance + holdings * price) - 1000;
           alert(`🏁 Time's up! Your profit: $${profitLoss.toFixed(2)}`);
           handleSaveScore();
           setGameMode('normal');
@@ -333,17 +334,29 @@ export default function Home() {
           playSound('loss');
           alert('💀 GAME OVER! You lost all lives!');
           
+          // ПРАВИЛЬНЫЙ ПОЛНЫЙ СБРОС
           setGameMode('normal');
           setBalance(1000);
           setHoldings(0);
           setHistory([]);
           setLives(3);
+          setPriceHistory([]);
+          setProfitHistory([]);
+          setWinStreak(0);
+          setBiggestTrade(0);
+          setMaxHoldings(0);
+          
+          // Очистить localStorage
+          localStorage.removeItem('gameState');
           
           return 3;
         }
         
         return newLives;
       });
+      
+      // ВАЖНО: НЕ ПРОДОЛЖАЕМ СДЕЛКУ!
+      return;
     }
 
     // Blockchain verification
@@ -577,7 +590,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* REST OF YOUR ORIGINAL CODE CONTINUES HERE... */}
+        {/* REST OF UI - COPYING YOUR EXACT CODE */}
         <div className="space-y-6">
           <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-6 text-white border border-slate-700 shadow-2xl">
             <h2 className="text-xl font-bold mb-4">📈 Price Chart (Last 60 seconds)</h2>
