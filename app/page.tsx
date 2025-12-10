@@ -33,7 +33,6 @@ export default function Home() {
   const [biggestTrade, setBiggestTrade] = useState(0);
   const [maxHoldings, setMaxHoldings] = useState(0);
 
-  // НОВЫЕ РЕЖИМЫ
   const [gameMode, setGameMode] = useState<'normal' | 'speed' | 'hardcore' | 'random'>('normal');
   const [timeLeft, setTimeLeft] = useState(300);
   const [lives, setLives] = useState(3);
@@ -44,7 +43,6 @@ export default function Home() {
     setMounted(true);
   }, []);
 
-  // Load saved game state
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('gameState');
@@ -61,7 +59,6 @@ export default function Home() {
     }
   }, []);
 
-  // Save game state on changes
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const state = { balance, holdings, history };
@@ -69,7 +66,6 @@ export default function Home() {
     }
   }, [balance, holdings, history]);
 
-  // Real-time price simulation
   useEffect(() => {
     let counter = 0;
     const interval = setInterval(() => {
@@ -89,7 +85,6 @@ export default function Home() {
     return () => clearInterval(interval);
   }, []);
 
-  // Speed Mode Timer
   useEffect(() => {
     if (gameMode !== 'speed') return;
     
@@ -109,7 +104,6 @@ export default function Home() {
     return () => clearInterval(timer);
   }, [gameMode, balance, holdings, price]);
 
-  // Random Events
   useEffect(() => {
     if (gameMode !== 'random') return;
 
@@ -157,7 +151,6 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [gameMode]);
 
-  // Daily Challenge
   useEffect(() => {
     const today = new Date().toDateString();
     const savedChallenge = localStorage.getItem('dailyChallenge');
@@ -179,7 +172,6 @@ export default function Home() {
     }
   }, []);
 
-  // Check Daily Challenge
   useEffect(() => {
     if (!dailyChallenge || dailyChallenge.completed) return;
     
@@ -198,7 +190,6 @@ export default function Home() {
     }
   }, [balance, holdings, price, dailyChallenge]);
 
-  // Update profit history when values change
   useEffect(() => {
     const totalValue = balance + (holdings * price);
     const profitLoss = totalValue - 1000;
@@ -216,7 +207,6 @@ export default function Home() {
     setLastProfit(profitLoss);
   }, [balance, holdings, price]);
 
-  // Fetch leaderboard
   useEffect(() => {
     const fetchLeaderboard = async () => {
       try {
@@ -287,7 +277,6 @@ export default function Home() {
       return;
     }
 
-    // Blockchain verification
     const tradeProof = await recordTradeOnChain(wallet, {
       type: 'BUY',
       amount,
@@ -325,7 +314,6 @@ export default function Home() {
     const lastBuyPrice = [...history].reverse().find(h => h.type === 'BUY')?.price || 100;
     const tradeProfit = (price - lastBuyPrice) * amount;
     
-    // Hardcore Mode: lose life on loss
     if (gameMode === 'hardcore' && tradeProfit < 0) {
       setLives(prev => {
         const newLives = prev - 1;
@@ -334,7 +322,6 @@ export default function Home() {
           playSound('loss');
           alert('💀 GAME OVER! You lost all lives!');
           
-          // ПРАВИЛЬНЫЙ ПОЛНЫЙ СБРОС
           setGameMode('normal');
           setBalance(1000);
           setHoldings(0);
@@ -346,7 +333,6 @@ export default function Home() {
           setBiggestTrade(0);
           setMaxHoldings(0);
           
-          // Очистить localStorage
           localStorage.removeItem('gameState');
           
           return 3;
@@ -355,11 +341,9 @@ export default function Home() {
         return newLives;
       });
       
-      // ВАЖНО: НЕ ПРОДОЛЖАЕМ СДЕЛКУ!
       return;
     }
 
-    // Blockchain verification
     const tradeProof = await recordTradeOnChain(wallet, {
       type: 'SELL',
       amount,
@@ -494,7 +478,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* DAILY CHALLENGE */}
         {dailyChallenge && !dailyChallenge.completed && (
           <div className="bg-gradient-to-r from-yellow-600 to-orange-600 rounded-xl p-4 mb-6 shadow-2xl">
             <div className="flex justify-between items-center">
@@ -517,18 +500,12 @@ export default function Home() {
           </div>
         )}
 
-        {/* GAME MODES */}
         <div className="bg-slate-800 rounded-xl p-6 mb-6 border border-slate-700 shadow-2xl">
           <h3 className="text-2xl font-bold text-white mb-4">🎮 Game Modes</h3>
           
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <button
-              onClick={() => {
-                setGameMode('normal');
-                setBalance(1000);
-                setHoldings(0);
-                setHistory([]);
-              }}
+              onClick={() => setGameMode('normal')}
               className={`px-4 py-3 rounded-lg font-bold transition transform hover:scale-105 ${
                 gameMode === 'normal' 
                   ? 'bg-blue-600 text-white shadow-lg' 
@@ -542,9 +519,6 @@ export default function Home() {
               onClick={() => {
                 setGameMode('speed');
                 setTimeLeft(300);
-                setBalance(1000);
-                setHoldings(0);
-                setHistory([]);
               }}
               className={`px-4 py-3 rounded-lg font-bold transition transform hover:scale-105 ${
                 gameMode === 'speed' 
@@ -559,9 +533,6 @@ export default function Home() {
               onClick={() => {
                 setGameMode('hardcore');
                 setLives(3);
-                setBalance(1000);
-                setHoldings(0);
-                setHistory([]);
               }}
               className={`px-4 py-3 rounded-lg font-bold transition transform hover:scale-105 ${
                 gameMode === 'hardcore' 
@@ -573,12 +544,7 @@ export default function Home() {
             </button>
 
             <button
-              onClick={() => {
-                setGameMode('random');
-                setBalance(1000);
-                setHoldings(0);
-                setHistory([]);
-              }}
+              onClick={() => setGameMode('random')}
               className={`px-4 py-3 rounded-lg font-bold transition transform hover:scale-105 ${
                 gameMode === 'random' 
                   ? 'bg-purple-600 text-white shadow-lg' 
@@ -590,7 +556,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* REST OF UI - COPYING YOUR EXACT CODE */}
         <div className="space-y-6">
           <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-6 text-white border border-slate-700 shadow-2xl">
             <h2 className="text-xl font-bold mb-4">📈 Price Chart (Last 60 seconds)</h2>
@@ -877,7 +842,6 @@ export default function Home() {
         </div>
       </div>
 
-      {/* TIMERS & INDICATORS */}
       {gameMode === 'speed' && (
         <div className="fixed top-4 right-4 bg-orange-600 px-6 py-3 rounded-xl text-2xl font-bold shadow-2xl z-50 animate-pulse">
           ⏱️ {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
@@ -890,7 +854,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* RANDOM EVENT NOTIFICATION */}
       {randomEvent && (
         <div className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none">
           <div className="bg-gradient-to-r from-purple-600 via-pink-600 to-purple-600 px-16 py-12 rounded-3xl text-6xl font-bold animate-bounce shadow-2xl">
@@ -902,7 +865,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* ACHIEVEMENT NOTIFICATION */}
       {achievementNotification && (
         <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 animate-bounce">
           <div className="bg-gradient-to-r from-yellow-500 via-purple-500 to-blue-500 p-1 rounded-2xl shadow-2xl">
