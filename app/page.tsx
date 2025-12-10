@@ -115,49 +115,96 @@ export default function Home() {
     return () => clearInterval(timer);
   }, [gameMode]);
 
+  // Random Events - ИСПРАВЛЕНО
   useEffect(() => {
     if (gameMode !== 'random') return;
 
     const interval = setInterval(() => {
-      if (Math.random() < 0.15) {
+      if (Math.random() < 0.2) { // Увеличил шанс до 20%
         const events = [
           { 
             name: 'BULL RUN', 
             emoji: '📈',
-            effect: () => setPrice(p => Math.min(p * 2, p + 100))
+            effect: () => {
+              setPrice(p => {
+                const newPrice = p + 50; // +$50 к цене!
+                console.log(`BULL RUN! ${p} → ${newPrice}`);
+                return newPrice;
+              });
+            }
           },
           { 
             name: 'MARKET CRASH', 
             emoji: '📉',
-            effect: () => setPrice(p => Math.max(50, p * 0.6))
+            effect: () => {
+              setPrice(p => {
+                const newPrice = Math.max(50, p - 40); // -$40 от цены!
+                console.log(`CRASH! ${p} → ${newPrice}`);
+                return newPrice;
+              });
+            }
           },
           { 
             name: 'VOLATILITY SPIKE', 
             emoji: '⚡',
-            effect: () => {}
+            effect: () => {
+              setPrice(p => {
+                const change = (Math.random() - 0.5) * 60; // Сильные скачки ±30
+                const newPrice = Math.max(50, p + change);
+                console.log(`VOLATILITY! ${p} → ${newPrice}`);
+                return newPrice;
+              });
+            }
           },
           { 
-            name: 'WHALE ALERT', 
+            name: 'WHALE DUMP', 
             emoji: '🐋',
-            effect: () => setPrice(p => p + (Math.random() - 0.5) * 50)
+            effect: () => {
+              setPrice(p => {
+                const newPrice = Math.max(50, p - 25); // -$25
+                console.log(`WHALE DUMP! ${p} → ${newPrice}`);
+                return newPrice;
+              });
+            }
           },
           { 
-            name: 'LUCKY HOUR', 
-            emoji: '🍀',
-            effect: () => {}
+            name: 'PUMP IT UP', 
+            emoji: '🚀',
+            effect: () => {
+              setPrice(p => {
+                const newPrice = p + 35; // +$35
+                console.log(`PUMP! ${p} → ${newPrice}`);
+                return newPrice;
+              });
+            }
+          },
+          { 
+            name: 'RUG PULL', 
+            emoji: '💀',
+            effect: () => {
+              setPrice(p => {
+                const newPrice = Math.max(50, p * 0.7); // -30%
+                console.log(`RUG PULL! ${p} → ${newPrice}`);
+                return newPrice;
+              });
+            }
           }
         ];
 
         const event = events[Math.floor(Math.random() * events.length)];
+        
+        // Показываем уведомление
         setRandomEvent({ name: event.name, emoji: event.emoji });
+        
+        // Применяем эффект
         event.effect();
         
         playSound('achievement');
-        confetti({ particleCount: 50, spread: 60 });
+        confetti({ particleCount: 100, spread: 80 });
         
-        setTimeout(() => setRandomEvent(null), 4000);
+        setTimeout(() => setRandomEvent(null), 3000);
       }
-    }, 10000);
+    }, 5000); // Каждые 5 секунд вместо 10!
 
     return () => clearInterval(interval);
   }, [gameMode]);
@@ -585,7 +632,7 @@ export default function Home() {
             )}
             {gameMode === 'random' && (
               <p className="text-slate-300 text-sm">
-                <span className="font-bold text-purple-400">🎲 Chaos Mode:</span> Random market events every 10 seconds! Bull runs, crashes, and more!
+                <span className="font-bold text-purple-400">🎲 Chaos Mode:</span> Random events every 5 seconds! 📈 Bull runs (+$50), 📉 crashes (-$40), 🚀 pumps (+$35), 💀 rug pulls (-30%), and more!
               </p>
             )}
           </div>
