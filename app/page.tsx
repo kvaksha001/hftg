@@ -85,24 +85,35 @@ export default function Home() {
     return () => clearInterval(interval);
   }, []);
 
+  // Speed Mode Timer - ИСПРАВЛЕНО
   useEffect(() => {
     if (gameMode !== 'speed') return;
     
     const timer = setInterval(() => {
       setTimeLeft(prev => {
-        if (prev <= 0) {
+        if (prev <= 1) {
           const profitLoss = (balance + holdings * price) - 1000;
-          alert(`🏁 Time's up! Your profit: $${profitLoss.toFixed(2)}`);
-          handleSaveScore();
+          
+          // БОНУС ЗА SPEED MODE!
+          let bonus = 0;
+          if (profitLoss > 0) {
+            bonus = Math.floor(profitLoss * 0.5); // +50% бонус!
+            setBalance(b => b + bonus);
+          }
+          
+          playSound('achievement');
+          confetti({ particleCount: 200, spread: 90 });
+          alert(`🏁 Time's Up!\n\n💰 Your Profit: $${profitLoss.toFixed(2)}\n🎁 Speed Bonus: $${bonus}\n✨ Total: $${(profitLoss + bonus).toFixed(2)}`);
+          
           setGameMode('normal');
-          return 0;
+          return 300;
         }
         return prev - 1;
       });
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [gameMode, balance, holdings, price]);
+  }, [gameMode]);
 
   useEffect(() => {
     if (gameMode !== 'random') return;
@@ -553,6 +564,30 @@ export default function Home() {
             >
               🎲 Chaos<br/><span className="text-xs">events</span>
             </button>
+          </div>
+
+          {/* ОПИСАНИЕ РЕЖИМА */}
+          <div className="mt-4 p-4 bg-slate-700/50 rounded-lg">
+            {gameMode === 'normal' && (
+              <p className="text-slate-300 text-sm">
+                <span className="font-bold text-blue-400">🎯 Normal Mode:</span> Classic trading with no time limit. Trade at your own pace!
+              </p>
+            )}
+            {gameMode === 'speed' && (
+              <p className="text-slate-300 text-sm">
+                <span className="font-bold text-orange-400">⚡ Speed Mode:</span> 5 minutes to maximize profit! <span className="text-green-400 font-bold">+50% bonus</span> on final profit!
+              </p>
+            )}
+            {gameMode === 'hardcore' && (
+              <p className="text-slate-300 text-sm">
+                <span className="font-bold text-red-400">💀 Hardcore Mode:</span> Only 3 lives! Lose money = lose a life. Game over at 0 lives!
+              </p>
+            )}
+            {gameMode === 'random' && (
+              <p className="text-slate-300 text-sm">
+                <span className="font-bold text-purple-400">🎲 Chaos Mode:</span> Random market events every 10 seconds! Bull runs, crashes, and more!
+              </p>
+            )}
           </div>
         </div>
 
