@@ -9,17 +9,19 @@ import { collection, addDoc, query, orderBy, limit, getDocs } from 'firebase/fir
 import confetti from 'canvas-confetti';
 import { ACHIEVEMENTS, checkAchievements } from '@/lib/achievements';
 import { playSound } from '@/lib/sounds';
+import { recordTradeOnChain } from '@/lib/blockchain';
 import Link from 'next/link';
 
 export default function Home() {
   const { publicKey } = useWallet();
+  const wallet = useWallet();
   
   const [balance, setBalance] = useState(1000);
   const [price, setPrice] = useState(100);
   const [holdings, setHoldings] = useState(0);
   const [buyAmount, setBuyAmount] = useState('');
   const [sellAmount, setSellAmount] = useState('');
-  const [history, setHistory] = useState<Array<{type: string, amount: number, price: number}>>([]);
+  const [history, setHistory] = useState<Array<{type: string, amount: number, price: number, proof?: string | null}>>([]);
   const [priceHistory, setPriceHistory] = useState<Array<{time: number, price: number}>>([]);
   const [profitHistory, setProfitHistory] = useState<Array<{time: number, profit: number}>>([]);
   const [leaderboard, setLeaderboard] = useState<Array<{rank: number, name: string, profit: number, trades: number, avatar?: string}>>([]);
@@ -30,6 +32,13 @@ export default function Home() {
   const [winStreak, setWinStreak] = useState(0);
   const [biggestTrade, setBiggestTrade] = useState(0);
   const [maxHoldings, setMaxHoldings] = useState(0);
+
+  // НОВЫЕ РЕЖИМЫ
+  const [gameMode, setGameMode] = useState<'normal' | 'speed' | 'hardcore' | 'random'>('normal');
+  const [timeLeft, setTimeLeft] = useState(300);
+  const [lives, setLives] = useState(3);
+  const [randomEvent, setRandomEvent] = useState<{name: string, emoji: string} | null>(null);
+  const [dailyChallenge, setDailyChallenge] = useState<{target: number, reward: number, completed: boolean} | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -80,6 +89,114 @@ export default function Home() {
     return () => clearInterval(interval);
   }, []);
 
+  // Speed Mode Timer
+  useEffect(() => {
+    if (gameMode !== 'speed') return;
+    
+    const timer = setInterval(() => {
+      setTimeLeft(prev => {
+        if (prev <= 0) {
+          alert(`🏁 Time's up! Your profit: $${profitLoss.toFixed(2)}`);
+          handleSaveScore();
+          setGameMode('normal');
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [gameMode, balance, holdings, price]);
+
+  // Random Events
+  useEffect(() => {
+    if (gameMode !== 'random') return;
+
+    const interval = setInterval(() => {
+      if (Math.random() < 0.15) {
+        const events = [
+          { 
+            name: 'BULL RUN', 
+            emoji: '📈',
+            effect: () => setPrice(p => Math.min(p * 2, p + 100))
+          },
+          { 
+            name: 'MARKET CRASH', 
+            emoji: '📉',
+            effect: () => setPrice(p => Math.max(50, p * 0.6))
+          },
+          { 
+            name: 'VOLATILITY SPIKE', 
+            emoji: '⚡',
+            effect: () => {}
+          },
+          { 
+            name: 'WHALE ALERT', 
+            emoji: '🐋',
+            effect: () => setPrice(p => p + (Math.random() - 0.5) * 50)
+          },
+          { 
+            name: 'LUCKY HOUR', 
+            emoji: '🍀',
+            effect: () => {}
+          }
+        ];
+
+        const event = events[Math.floor(Math.random() * events.length)];
+        setRandomEvent({ name: event.name, emoji: event.emoji });
+        event.effect();
+        
+        playSound('achievement');
+        confetti({ particleCount: 50, spread: 60 });
+        
+        setTimeout(() => setRandomEvent(null), 4000);
+      }
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, [gameMode]);
+
+  // Daily Challenge
+  useEffect(() => {
+    const today = new Date().toDateString();
+    const savedChallenge = localStorage.getItem('dailyChallenge');
+    const savedDate = localStorage.getItem('challengeDate');
+    
+    if (savedDate === today && savedChallenge) {
+      setDailyChallenge(JSON.parse(savedChallenge));
+    } else {
+      const targets = [
+        { target: 200, reward: 50 },
+        { target: 500, reward: 100 },
+        { target: 1000, reward: 250 },
+      ];
+      const challenge = targets[Math.floor(Math.random() * targets.length)];
+      
+      setDailyChallenge({ ...challenge, completed: false });
+      localStorage.setItem('dailyChallenge', JSON.stringify({ ...challenge, completed: false }));
+      localStorage.setItem('challengeDate', today);
+    }
+  }, []);
+
+  // Check Daily Challenge
+  useEffect(() => {
+    if (!dailyChallenge || dailyChallenge.completed) return;
+    
+    const profitLoss = (balance + holdings * price) - 1000;
+    
+    if (profitLoss >= dailyChallenge.target) {
+      const updated = { ...dailyChallenge, completed: true };
+      setDailyChallenge(updated);
+      localStorage.setItem('dailyChallenge', JSON.stringify(updated));
+      
+      alert(`🎉 Daily Challenge Complete! +$${dailyChallenge.reward} bonus!`);
+      setBalance(prev => prev + dailyChallenge.reward);
+      
+      playSound('achievement');
+      confetti({ particleCount: 200, spread: 90 });
+    }
+  }, [balance, holdings, price, dailyChallenge]);
+
   // Update profit history when values change
   useEffect(() => {
     const totalValue = balance + (holdings * price);
@@ -90,7 +207,6 @@ export default function Home() {
       return updated.slice(-60);
     });
 
-    // Profit/loss sounds
     if (profitLoss > lastProfit && lastProfit !== 0 && profitLoss > 0) {
       playSound('profit');
     } else if (profitLoss < lastProfit && lastProfit !== 0 && profitLoss < -50) {
@@ -139,7 +255,6 @@ export default function Home() {
       biggestLoss: currentProfit < -200 ? currentProfit : 0
     };
     
-    // Save stats
     localStorage.setItem('playerStats', JSON.stringify(stats));
     
     const newAchievements = checkAchievements(stats);
@@ -160,7 +275,7 @@ export default function Home() {
     }
   };
 
-  const handleBuy = () => {
+  const handleBuy = async () => {
     const amount = parseFloat(buyAmount);
     if (!amount || amount <= 0) return;
     
@@ -171,6 +286,15 @@ export default function Home() {
       return;
     }
 
+    // Blockchain verification
+    const tradeProof = await recordTradeOnChain(wallet, {
+      type: 'BUY',
+      amount,
+      price,
+      timestamp: Date.now(),
+      profit: 0
+    });
+
     playSound('buy');
     setBalance(prev => prev - cost);
     setHoldings(prev => {
@@ -178,16 +302,15 @@ export default function Home() {
       if (newHoldings > maxHoldings) setMaxHoldings(newHoldings);
       return newHoldings;
     });
-    setHistory(prev => [...prev, { type: 'BUY', amount, price }]);
+    setHistory(prev => [...prev, { type: 'BUY', amount, price, proof: tradeProof }]);
     setBuyAmount('');
     
     if (cost > biggestTrade) setBiggestTrade(cost);
     
-    // Check achievements
     setTimeout(() => checkAndShowAchievements(), 100);
   };
 
-  const handleSell = () => {
+  const handleSell = async () => {
     const amount = parseFloat(sellAmount);
     if (!amount || amount <= 0) return;
     if (amount > holdings) {
@@ -197,11 +320,42 @@ export default function Home() {
     }
 
     const revenue = amount * price;
-    playSound('sell');
     
-    // Calculate if profitable
     const lastBuyPrice = [...history].reverse().find(h => h.type === 'BUY')?.price || 100;
     const tradeProfit = (price - lastBuyPrice) * amount;
+    
+    // Hardcore Mode: lose life on loss
+    if (gameMode === 'hardcore' && tradeProfit < 0) {
+      setLives(prev => {
+        const newLives = prev - 1;
+        
+        if (newLives <= 0) {
+          playSound('loss');
+          alert('💀 GAME OVER! You lost all lives!');
+          
+          setGameMode('normal');
+          setBalance(1000);
+          setHoldings(0);
+          setHistory([]);
+          setLives(3);
+          
+          return 3;
+        }
+        
+        return newLives;
+      });
+    }
+
+    // Blockchain verification
+    const tradeProof = await recordTradeOnChain(wallet, {
+      type: 'SELL',
+      amount,
+      price,
+      timestamp: Date.now(),
+      profit: tradeProfit
+    });
+    
+    playSound('sell');
     
     if (tradeProfit > 0) {
       setWinStreak(prev => prev + 1);
@@ -211,12 +365,11 @@ export default function Home() {
     
     setBalance(prev => prev + revenue);
     setHoldings(prev => prev - amount);
-    setHistory(prev => [...prev, { type: 'SELL', amount, price }]);
+    setHistory(prev => [...prev, { type: 'SELL', amount, price, proof: tradeProof }]);
     setSellAmount('');
     
     if (revenue > biggestTrade) setBiggestTrade(revenue);
     
-    // Check achievements
     setTimeout(() => checkAndShowAchievements(), 100);
   };
 
@@ -229,7 +382,6 @@ export default function Home() {
     const totalValue = balance + (holdings * price);
     const profitLoss = totalValue - 1000;
 
-    // Проверяем последний сохранённый профит
     const savedKey = `lastProfit_${publicKey.toBase58()}`;
     const lastProfit = localStorage.getItem(savedKey);
     
@@ -254,10 +406,10 @@ export default function Home() {
         finalBalance: balance,
         finalHoldings: holdings,
         timestamp: new Date(),
-        finalPrice: price
+        finalPrice: price,
+        gameMode: gameMode
       });
 
-      // Сохраняем последний профит
       localStorage.setItem(savedKey, profitLoss.toString());
       alert('✅ Score saved to leaderboard!');
       playSound('achievement');
@@ -329,6 +481,103 @@ export default function Home() {
           </div>
         </div>
 
+        {/* DAILY CHALLENGE */}
+        {dailyChallenge && !dailyChallenge.completed && (
+          <div className="bg-gradient-to-r from-yellow-600 to-orange-600 rounded-xl p-4 mb-6 shadow-2xl">
+            <div className="flex justify-between items-center">
+              <div>
+                <p className="text-white font-bold text-lg">🎯 Daily Challenge</p>
+                <p className="text-yellow-100 text-sm">
+                  Reach ${dailyChallenge.target} profit to win ${dailyChallenge.reward}!
+                </p>
+              </div>
+              <div className="text-3xl font-bold text-white">
+                ${profitLoss.toFixed(0)} / ${dailyChallenge.target}
+              </div>
+            </div>
+            <div className="mt-2 bg-yellow-900/50 rounded-full h-3 overflow-hidden">
+              <div 
+                className="bg-yellow-300 h-full transition-all duration-500"
+                style={{ width: `${Math.min(100, (profitLoss / dailyChallenge.target) * 100)}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* GAME MODES */}
+        <div className="bg-slate-800 rounded-xl p-6 mb-6 border border-slate-700 shadow-2xl">
+          <h3 className="text-2xl font-bold text-white mb-4">🎮 Game Modes</h3>
+          
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <button
+              onClick={() => {
+                setGameMode('normal');
+                setBalance(1000);
+                setHoldings(0);
+                setHistory([]);
+              }}
+              className={`px-4 py-3 rounded-lg font-bold transition transform hover:scale-105 ${
+                gameMode === 'normal' 
+                  ? 'bg-blue-600 text-white shadow-lg' 
+                  : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+              }`}
+            >
+              🎯 Normal
+            </button>
+
+            <button
+              onClick={() => {
+                setGameMode('speed');
+                setTimeLeft(300);
+                setBalance(1000);
+                setHoldings(0);
+                setHistory([]);
+              }}
+              className={`px-4 py-3 rounded-lg font-bold transition transform hover:scale-105 ${
+                gameMode === 'speed' 
+                  ? 'bg-orange-600 text-white shadow-lg' 
+                  : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+              }`}
+            >
+              ⚡ Speed<br/><span className="text-xs">5 min</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setGameMode('hardcore');
+                setLives(3);
+                setBalance(1000);
+                setHoldings(0);
+                setHistory([]);
+              }}
+              className={`px-4 py-3 rounded-lg font-bold transition transform hover:scale-105 ${
+                gameMode === 'hardcore' 
+                  ? 'bg-red-600 text-white shadow-lg' 
+                  : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+              }`}
+            >
+              💀 Hardcore<br/><span className="text-xs">3 lives</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setGameMode('random');
+                setBalance(1000);
+                setHoldings(0);
+                setHistory([]);
+              }}
+              className={`px-4 py-3 rounded-lg font-bold transition transform hover:scale-105 ${
+                gameMode === 'random' 
+                  ? 'bg-purple-600 text-white shadow-lg' 
+                  : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+              }`}
+            >
+              🎲 Chaos<br/><span className="text-xs">events</span>
+            </button>
+          </div>
+        </div>
+
+        {/* REST OF YOUR ORIGINAL CODE CONTINUES HERE... */}
         <div className="space-y-6">
           <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-6 text-white border border-slate-700 shadow-2xl">
             <h2 className="text-xl font-bold mb-4">📈 Price Chart (Last 60 seconds)</h2>
@@ -475,6 +724,7 @@ export default function Home() {
                       <div key={i} className={`flex justify-between text-sm p-3 rounded-lg border ${trade.type === 'BUY' ? 'bg-green-500/10 border-green-500/30' : 'bg-red-500/10 border-red-500/30'}`}>
                         <span className={trade.type === 'BUY' ? 'text-green-400 font-bold' : 'text-red-400 font-bold'}>
                           {trade.type} {trade.amount.toFixed(2)} @ ${trade.price.toFixed(2)}
+                          {trade.proof && <span className="ml-2 text-xs text-blue-400">✓</span>}
                         </span>
                         <span className="text-slate-400">
                           {trade.type === 'BUY' ? '-' : '+'}${(trade.amount * trade.price).toFixed(2)}
@@ -573,7 +823,6 @@ export default function Home() {
                     }`}
                   >
                     <div className="flex items-center gap-3 mb-3">
-                      {/* Avatar */}
                       {trader.avatar ? (
                         <img 
                           src={trader.avatar} 
@@ -615,7 +864,32 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Achievement Notification - CENTERED & BIG */}
+      {/* TIMERS & INDICATORS */}
+      {gameMode === 'speed' && (
+        <div className="fixed top-4 right-4 bg-orange-600 px-6 py-3 rounded-xl text-2xl font-bold shadow-2xl z-50 animate-pulse">
+          ⏱️ {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
+        </div>
+      )}
+
+      {gameMode === 'hardcore' && (
+        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-red-600 px-6 py-3 rounded-xl text-2xl font-bold shadow-2xl z-50">
+          {'❤️'.repeat(lives)} {lives} Lives
+        </div>
+      )}
+
+      {/* RANDOM EVENT NOTIFICATION */}
+      {randomEvent && (
+        <div className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none">
+          <div className="bg-gradient-to-r from-purple-600 via-pink-600 to-purple-600 px-16 py-12 rounded-3xl text-6xl font-bold animate-bounce shadow-2xl">
+            <div className="text-center">
+              <div className="text-8xl mb-4">{randomEvent.emoji}</div>
+              <div className="text-white">{randomEvent.name}!</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ACHIEVEMENT NOTIFICATION */}
       {achievementNotification && (
         <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 animate-bounce">
           <div className="bg-gradient-to-r from-yellow-500 via-purple-500 to-blue-500 p-1 rounded-2xl shadow-2xl">
