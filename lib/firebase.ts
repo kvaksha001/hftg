@@ -1,5 +1,6 @@
-import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, addDoc, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
+import { initializeApp, getApps } from "firebase/app";
+import { getFirestore } from "firebase/firestore";
+import { getAnalytics } from "firebase/analytics";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -10,49 +11,13 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-const app = initializeApp(firebaseConfig);
+// Initialize Firebase (только если ещё не инициализирован)
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+
+// Initialize Firestore
 export const db = getFirestore(app);
 
-// Blockchain trades collection
-export async function saveBlockchainTrade(
-  playerAddress: string,
-  signature: string,
-  tradeData: {
-    type: 'BUY' | 'SELL';
-    amount: number;
-    price: number;
-    profit: number;
-    timestamp: number;
-  }
-) {
-  try {
-    await addDoc(collection(db, 'blockchain_trades'), {
-      playerAddress,
-      signature,
-      ...tradeData,
-      verifiedAt: new Date(),
-      chainId: 'devnet',
-    });
-  } catch (error) {
-    console.error('Save blockchain trade error:', error);
-  }
-}
+// Analytics (работает только в браузере)
+export const analytics = typeof window !== 'undefined' ? getAnalytics(app) : null;
 
-export async function getBlockchainTrades(playerAddress: string) {
-  try {
-    const q = query(
-      collection(db, 'blockchain_trades'),
-      where('playerAddress', '==', playerAddress),
-      orderBy('timestamp', 'desc'),
-      limit(50)
-    );
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
-  } catch (error) {
-    console.error('Get blockchain trades error:', error);
-    return [];
-  }
-}
+export default app;
